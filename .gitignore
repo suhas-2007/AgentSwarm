@@ -2,3 +2,6 @@ venv/
 .env
 __pycache__/
 *.pyc
+
+# Generated RAG database
+rag/chroma_db/
