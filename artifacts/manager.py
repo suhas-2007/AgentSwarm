@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import re
 import shutil
+import stat
 
 
 BASE_ARTIFACT_DIR = Path(
@@ -262,6 +263,36 @@ def list_artifacts(
     return artifacts
 
 
+def _remove_readonly(
+    func,
+    path,
+    exc_info
+):
+    """
+    Retry filesystem deletion after removing
+    the read-only attribute.
+
+    This is useful on Windows/OneDrive where
+    generated files can occasionally be marked
+    read-only.
+    """
+
+    try:
+
+        os.chmod(
+            path,
+            stat.S_IWRITE
+        )
+
+        func(
+            path
+        )
+
+    except OSError:
+
+        raise
+
+
 def delete_task_artifacts(
     task_id: int
 ) -> bool:
@@ -295,7 +326,8 @@ def delete_task_artifacts(
         )
 
     shutil.rmtree(
-        task_directory
+        task_directory,
+        onerror=_remove_readonly
     )
 
     return True

@@ -1,8 +1,10 @@
 import os
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import (
+    ChatGoogleGenerativeAI
+)
 
-from rag.vector_store import search_documents
+from rag.search import retrieve_documents
 
 
 def get_llm():
@@ -13,6 +15,56 @@ def get_llm():
             "GEMINI_API_KEY"
         ),
         temperature=0
+    )
+
+
+def build_rag_evidence(
+    results: list[dict]
+) -> str:
+    """
+    Convert normalized RAG retrieval results
+    into evidence that can be provided to
+    the Evaluator Agent.
+    """
+
+    if not results:
+
+        return (
+            "No relevant documentation was "
+            "retrieved from the knowledge base."
+        )
+
+    evidence_parts = []
+
+    for index, result in enumerate(
+        results,
+        start=1
+    ):
+
+        distance = result.get(
+            "distance"
+        )
+
+        distance_text = (
+            f"{distance:.4f}"
+            if distance is not None
+            else "unknown"
+        )
+
+        evidence_parts.append(
+            f"""
+Evidence {index}
+Source: {result.get("source", "unknown")}
+Chunk ID: {result.get("chunk_id", "unknown")}
+Document ID: {result.get("id", "unknown")}
+Distance: {distance_text}
+
+{result.get("content", "")}
+""".strip()
+        )
+
+    return "\n\n".join(
+        evidence_parts
     )
 
 
@@ -33,6 +85,9 @@ User goal:
 Task:
 {task_description}
 
+Research:
+{research}
+
 Look for reliable documentation relevant to:
 
 - factual correctness
@@ -44,102 +99,22 @@ Look for reliable documentation relevant to:
 - contradictions
 """
 
-    rag_results = search_documents(
+    rag_results = retrieve_documents(
         query,
         n_results=3
     )
 
-    documents = rag_results.get(
-        "documents",
-        [[]]
-    )[0]
-
-    distances = rag_results.get(
-        "distances",
-        [[]]
-    )[0]
-
-    ids = rag_results.get(
-        "ids",
-        [[]]
-    )[0]
-
-    metadatas = rag_results.get(
-        "metadatas",
-        [[]]
-    )[0]
-
-    if documents:
-
-        evidence_parts = []
-
-        for i, document in enumerate(
-            documents
-        ):
-
-            distance = (
-                distances[i]
-                if distances
-                else None
-            )
-
-            document_id = (
-                ids[i]
-                if ids
-                else f"document_{i + 1}"
-            )
-
-            metadata = (
-                metadatas[i]
-                if metadatas
-                else {}
-            )
-
-            source = metadata.get(
-                "source",
-                "unknown"
-            )
-
-            chunk_id = metadata.get(
-                "chunk_id",
-                "unknown"
-            )
-
-            distance_text = (
-                f"{distance:.4f}"
-                if distance is not None
-                else "unknown"
-            )
-
-            evidence_parts.append(
-                f"""
-Evidence {i + 1}
-Source: {source}
-Chunk ID: {chunk_id}
-Document ID: {document_id}
-Distance: {distance_text}
-
-{document}
-"""
-            )
-
-        evidence = "\n".join(
-            evidence_parts
-        )
-
-    else:
-
-        evidence = (
-            "No relevant documentation was "
-            "retrieved from the knowledge base."
-        )
+    evidence = build_rag_evidence(
+        rag_results
+    )
 
     implementation_section = (
         code
         if code
         else
         "No code was generated because "
-        "the task does not require software implementation."
+        "the task does not require software "
+        "implementation."
     )
 
     content_section = (
@@ -252,6 +227,9 @@ RAG evidence verification:
   against the retrieved evidence.
 - Do NOT treat semantic distance as a correctness score.
 - Do NOT invent supporting evidence.
+- Retrieved evidence may be incomplete.
+- Do not claim that evidence supports something
+  unless it actually supports the claim.
 
 Claim classification:
 

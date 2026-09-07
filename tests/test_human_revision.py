@@ -11,9 +11,10 @@ def test_human_rejection_triggers_revision(monkeypatch):
     # Fake Planner
     # --------------------------------------------------
 
-    def fake_planner_agent(goal):
+   def fake_planner_agent(goal):
 
-        return [
+    return {
+        "tasks": [
             {
                 "task_id": 1,
                 "description": "Create the application structure.",
@@ -29,6 +30,7 @@ def test_human_rejection_triggers_revision(monkeypatch):
                 "depends_on": [1]
             }
         ]
+    }
 
     # --------------------------------------------------
     # Fake Researcher

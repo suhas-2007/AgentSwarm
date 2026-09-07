@@ -3,10 +3,11 @@ from database import models
 
 
 def init_database():
-    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
-    print("DATABASE TABLES RESET AND CREATED SUCCESSFULLY")
+    print(
+        "DATABASE TABLES CREATED SUCCESSFULLY"
+    )
 
 
 if __name__ == "__main__":

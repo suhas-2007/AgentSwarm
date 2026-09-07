@@ -117,6 +117,12 @@ def coder_node(
 
     task_id = state["task_id"]
 
+    # Check again immediately before the
+    # filesystem side effect.
+    check_current_task_stopped(
+        state
+    )
+
     save_artifact(
         task_id,
         f"task_{current_task['task_id']}_code.txt",
@@ -269,6 +275,12 @@ def revision_node(
             state["human_feedback"]
         )
 
+        check_current_task_stopped(
+            state
+        )
+
+        # Check again immediately before the
+        # filesystem side effect.
         check_current_task_stopped(
             state
         )

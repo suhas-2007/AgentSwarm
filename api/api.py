@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 
 from langgraph.types import Command
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from api.schemas import (
@@ -120,56 +120,52 @@ def sync_task_from_state(
     db: Session
 ):
 
-    if task.status == "STOPPED":
+    values = {
+        "status": state.get(
+            "status",
+            task.status
+        ),
 
-        db.refresh(task)
+        "plan": state.get(
+            "plan",
+            task.plan
+        ),
 
-        return
+        "research": state.get(
+            "research",
+            task.research
+        ),
 
-    task.status = state.get(
-        "status",
-        task.status
-    )
+        "content": state.get(
+            "content",
+            task.content
+        ),
 
-    task.plan = state.get(
-        "plan",
-        task.plan
-    )
+        "code": state.get(
+            "code",
+            task.code
+        ),
 
-    task.research = state.get(
-        "research",
-        task.research
-    )
+        "evaluation": state.get(
+            "evaluation",
+            task.evaluation
+        ),
 
-    task.content = state.get(
-        "content",
-        task.content
-    )
+        "final_answer": state.get(
+            "final_answer",
+            task.final_answer
+        ),
 
-    task.code = state.get(
-        "code",
-        task.code
-    )
+        "revision_count": state.get(
+            "revision_count",
+            task.revision_count
+        ),
 
-    task.evaluation = state.get(
-        "evaluation",
-        task.evaluation
-    )
-
-    task.final_answer = state.get(
-        "final_answer",
-        task.final_answer
-    )
-
-    task.revision_count = state.get(
-        "revision_count",
-        task.revision_count
-    )
-
-    task.current_task_id = state.get(
-        "current_task_id",
-        task.current_task_id
-    )
+        "current_task_id": state.get(
+            "current_task_id",
+            task.current_task_id
+        )
+    }
 
     completed_tasks = state.get(
         "completed_tasks"
@@ -177,13 +173,34 @@ def sync_task_from_state(
 
     if completed_tasks is not None:
 
-        task.completed_tasks = json.dumps(
-            completed_tasks
+        values["completed_tasks"] = (
+            json.dumps(
+                completed_tasks
+            )
         )
+
+    result = db.execute(
+        update(Task)
+        .where(
+            Task.id == task.id,
+            Task.status != "STOPPED"
+        )
+        .values(**values)
+    )
 
     db.commit()
 
     db.refresh(task)
+
+    # If another request stopped the task
+    # before this synchronization committed,
+    # the conditional UPDATE above affected
+    # zero rows and STOPPED remains authoritative.
+    if result.rowcount == 0:
+
+        db.refresh(task)
+
+        return
 
 
 def get_completed_tasks(
@@ -716,7 +733,26 @@ def get_shared_task(
                 "Shared task not found."
         )
 
-    return task_response(task)
+    # Public links expose only the
+    # information necessary to view
+    # the completed result.
+    #
+    # Internal research, code, evaluator
+    # output, planning details, and workflow
+    # state remain private.
+
+    return {
+        "task_id": task.id,
+
+        "status": task.status,
+
+        "goal": task.goal,
+
+        "final_answer": task.final_answer,
+
+        "revision_count":
+            task.revision_count
+    }
 
 
 # ============================================================
@@ -946,4 +982,3 @@ def submit_approval(
     )
 
     return task_response(task)
-

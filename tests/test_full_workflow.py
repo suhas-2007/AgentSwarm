@@ -13,45 +13,42 @@ def test_complete_workflow_with_approval(monkeypatch):
 
     def fake_planner_agent(goal):
 
-        return [
-            {
-                "task_id": 1,
-                "description": "Create the application structure.",
-                "agent": "researcher",
-                "task_type": "research",
-                "depends_on": []
-            },
-            {
-                "task_id": 2,
-                "description": "Implement the API endpoints.",
-                "agent": "coder",
-                "task_type": "coding",
-                "depends_on": [1]
-            }
-        ]
-
-    monkeypatch.setattr(
-        nodes,
-        "planner_agent",
-        fake_planner_agent
-    )
+        return {
+            "tasks": [
+                {
+                    "task_id": 1,
+                    "description": (
+                        "Create the application structure."
+                    ),
+                    "agent": "researcher",
+                    "task_type": "research",
+                    "depends_on": []
+                },
+                {
+                    "task_id": 2,
+                    "description": (
+                        "Implement the API endpoints."
+                    ),
+                    "agent": "coder",
+                    "task_type": "coding",
+                    "depends_on": [1]
+                }
+            ]
+        }
 
     # --------------------------------------------------
     # Fake Researcher
     # --------------------------------------------------
 
-    def fake_researcher_agent(goal, task_description):
+    def fake_researcher_agent(
+        goal,
+        task_description
+    ):
 
         return (
             "FastAPI supports Pydantic-based request "
             "validation."
         )
-
-    monkeypatch.setattr(
-        nodes,
-        "researcher_agent",
-        fake_researcher_agent
-    )
 
     # --------------------------------------------------
     # Fake Coder
@@ -65,36 +62,26 @@ def test_complete_workflow_with_approval(monkeypatch):
         human_feedback
     ):
 
-        return "FastAPI application implementation."
-
-    monkeypatch.setattr(
-        nodes,
-        "coder_agent",
-        fake_coder_agent
-    )
+        return (
+            "FastAPI application implementation."
+        )
 
     # --------------------------------------------------
     # Fake Evaluator
     # --------------------------------------------------
 
     def fake_evaluator_agent(
-    goal,
-    task_description,
-    research,
-    code,
-    content
-):
+        goal,
+        task_description,
+        research,
+        code,
+        content
+    ):
 
         return (
             "VERDICT: PASS\n"
             "ISSUES: None"
         )
-
-    monkeypatch.setattr(
-        nodes,
-        "evaluator_agent",
-        fake_evaluator_agent
-    )
 
     # --------------------------------------------------
     # Fake Human Approval
@@ -108,12 +95,6 @@ def test_complete_workflow_with_approval(monkeypatch):
             "human_feedback": "",
             "status": "FINALIZING"
         }
-
-    monkeypatch.setattr(
-        human,
-        "human_approval_node",
-        fake_human_approval_node
-    )
 
     # --------------------------------------------------
     # Fake Finalizer
@@ -130,6 +111,40 @@ def test_complete_workflow_with_approval(monkeypatch):
         return (
             "Implementation completed successfully."
         )
+
+    # --------------------------------------------------
+    # Patch dependencies
+    # --------------------------------------------------
+
+    monkeypatch.setattr(
+        nodes,
+        "planner_agent",
+        fake_planner_agent
+    )
+
+    monkeypatch.setattr(
+        nodes,
+        "researcher_agent",
+        fake_researcher_agent
+    )
+
+    monkeypatch.setattr(
+        nodes,
+        "coder_agent",
+        fake_coder_agent
+    )
+
+    monkeypatch.setattr(
+        nodes,
+        "evaluator_agent",
+        fake_evaluator_agent
+    )
+
+    monkeypatch.setattr(
+        human,
+        "human_approval_node",
+        fake_human_approval_node
+    )
 
     monkeypatch.setattr(
         nodes,
@@ -150,6 +165,8 @@ def test_complete_workflow_with_approval(monkeypatch):
     # --------------------------------------------------
 
     initial_state = {
+        "task_id": 1,
+
         "user_goal": "Build a FastAPI application",
 
         "plan": "",
@@ -204,14 +221,18 @@ def test_complete_workflow_with_approval(monkeypatch):
     assert result["plan_tasks"] == [
         {
             "task_id": 1,
-            "description": "Create the application structure.",
+            "description": (
+                "Create the application structure."
+            ),
             "agent": "researcher",
             "task_type": "research",
             "depends_on": []
         },
         {
             "task_id": 2,
-            "description": "Implement the API endpoints.",
+            "description": (
+                "Implement the API endpoints."
+            ),
             "agent": "coder",
             "task_type": "coding",
             "depends_on": [1]

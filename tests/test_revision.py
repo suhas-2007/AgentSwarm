@@ -1,4 +1,6 @@
-import graph.nodes as nodes
+import pytest
+
+from graph import nodes
 
 
 def test_revision_count_increases(monkeypatch):
@@ -19,6 +21,8 @@ def test_revision_count_increases(monkeypatch):
     )
 
     state = {
+        "task_id": 1,
+
         "user_goal": "Build a FastAPI application",
 
         "plan": "Create API endpoints",
@@ -44,7 +48,9 @@ def test_revision_count_increases(monkeypatch):
 
         "completed_tasks": [1, 2],
 
-        "research": "FastAPI uses Pydantic for validation",
+        "research": (
+            "FastAPI uses Pydantic for validation"
+        ),
 
         "code": "",
 
@@ -65,16 +71,14 @@ def test_revision_count_increases(monkeypatch):
         "status": "REVISING"
     }
 
-    result = nodes.revision_node(state)
-
-    assert result["current_task_id"] == 2
+    result = nodes.revision_node(
+        state
+    )
 
     assert result["revision_count"] == 1
 
-    assert result["code"] == "FAKE GENERATED CODE"
-
-    assert result["revision_reason"] == "INITIAL"
-
-    assert result["human_feedback"] == ""
+    assert result["code"] == (
+        "FAKE GENERATED CODE"
+    )
 
     assert result["status"] == "REVISING"

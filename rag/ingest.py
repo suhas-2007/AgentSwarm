@@ -8,7 +8,13 @@ from rag.vector_store import (
 from rag.chunker import chunk_text
 
 
-DOCUMENTS_DIR = Path("rag/documents")
+# Resolve the documents directory relative to
+# this file so ingestion works regardless of
+# the current working directory.
+DOCUMENTS_DIR = (
+    Path(__file__).resolve().parent
+    / "documents"
+)
 
 
 def load_documents():
@@ -16,11 +22,29 @@ def load_documents():
     ids = []
     metadatas = []
 
-    for file_path in DOCUMENTS_DIR.glob("*.txt"):
+    if not DOCUMENTS_DIR.exists():
 
-        text = file_path.read_text(
-            encoding="utf-8"
+        raise FileNotFoundError(
+            f"Documents directory not found: "
+            f"{DOCUMENTS_DIR}"
         )
+
+    for file_path in sorted(
+        DOCUMENTS_DIR.glob("*.txt")
+    ):
+
+        try:
+
+            text = file_path.read_text(
+                encoding="utf-8"
+            )
+
+        except OSError as exc:
+
+            raise RuntimeError(
+                f"Could not read document "
+                f"'{file_path.name}'."
+            ) from exc
 
         chunks = chunk_text(
             text,
@@ -28,9 +52,13 @@ def load_documents():
             overlap=100
         )
 
-        for index, chunk in enumerate(chunks):
+        for index, chunk in enumerate(
+            chunks
+        ):
 
-            documents.append(chunk)
+            documents.append(
+                chunk
+            )
 
             ids.append(
                 f"{file_path.stem}_chunk_{index}"
@@ -43,22 +71,33 @@ def load_documents():
                 }
             )
 
-    return documents, ids, metadatas
+    return (
+        documents,
+        ids,
+        metadatas
+    )
 
 
 if __name__ == "__main__":
 
-    documents, ids, metadatas = load_documents()
+    documents, ids, metadatas = (
+        load_documents()
+    )
 
     if not documents:
-        print("No documents found.")
+
+        print(
+            "No documents found."
+        )
 
     else:
 
-        # Remove previous knowledge base
+        # Remove the previous knowledge base
+        # before rebuilding it from the current
+        # document set.
         reset_collection()
 
-        # Add new chunks with metadata
+        # Add new chunks with metadata.
         add_documents(
             documents,
             ids,

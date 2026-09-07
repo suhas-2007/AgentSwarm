@@ -1,7 +1,7 @@
 import json
 import traceback
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from database.connection import SessionLocal
 from database.models import Task
@@ -17,58 +17,52 @@ def sync_task_from_state(
     db
 ):
 
-    # Never overwrite a STOPPED task with
-    # a late LangGraph state update.
-    if task.status == "STOPPED":
+    values = {
+        "status": state.get(
+            "status",
+            task.status
+        ),
 
-        db.refresh(task)
+        "plan": state.get(
+            "plan",
+            task.plan
+        ),
 
-        return
+        "research": state.get(
+            "research",
+            task.research
+        ),
 
-    task.status = state.get(
-        "status",
-        task.status
-    )
+        "content": state.get(
+            "content",
+            task.content
+        ),
 
-    task.plan = state.get(
-        "plan",
-        task.plan
-    )
+        "code": state.get(
+            "code",
+            task.code
+        ),
 
-    task.research = state.get(
-        "research",
-        task.research
-    )
+        "evaluation": state.get(
+            "evaluation",
+            task.evaluation
+        ),
 
-    task.content = state.get(
-        "content",
-        task.content
-    )
+        "final_answer": state.get(
+            "final_answer",
+            task.final_answer
+        ),
 
-    task.code = state.get(
-        "code",
-        task.code
-    )
+        "revision_count": state.get(
+            "revision_count",
+            task.revision_count
+        ),
 
-    task.evaluation = state.get(
-        "evaluation",
-        task.evaluation
-    )
-
-    task.final_answer = state.get(
-        "final_answer",
-        task.final_answer
-    )
-
-    task.revision_count = state.get(
-        "revision_count",
-        task.revision_count
-    )
-
-    task.current_task_id = state.get(
-        "current_task_id",
-        task.current_task_id
-    )
+        "current_task_id": state.get(
+            "current_task_id",
+            task.current_task_id
+        )
+    }
 
     completed_tasks = state.get(
         "completed_tasks"
@@ -76,13 +70,118 @@ def sync_task_from_state(
 
     if completed_tasks is not None:
 
-        task.completed_tasks = json.dumps(
-            completed_tasks
+        values["completed_tasks"] = (
+            json.dumps(
+                completed_tasks
+            )
         )
+
+    result = db.execute(
+        update(Task)
+        .where(
+            Task.id == task.id,
+            Task.status != "STOPPED"
+        )
+        .values(**values)
+    )
 
     db.commit()
 
     db.refresh(task)
+
+    # If the task was stopped by the user
+    # before this synchronization committed,
+    # the conditional UPDATE affects zero rows.
+    # STOPPED therefore remains authoritative.
+    if result.rowcount == 0:
+
+        db.refresh(task)
+
+        return
+
+
+def mark_task_failed(
+    task_id: int,
+    db
+):
+
+    try:
+
+        db.rollback()
+
+        task = db.scalar(
+            select(Task).where(
+                Task.id == task_id
+            )
+        )
+
+        if task is None:
+
+            return
+
+        # Never overwrite a task that the
+        # user has explicitly stopped.
+        if task.status == "STOPPED":
+
+            return
+
+        task.status = "FAILED"
+
+        task.current_task_id = None
+
+        db.commit()
+
+        db.refresh(task)
+
+    except Exception as recovery_error:
+
+        db.rollback()
+
+        print(
+            f"[TASK RUNNER] Could not mark "
+            f"task {task_id} as FAILED: "
+            f"{recovery_error}",
+            flush=True
+        )
+
+
+def mark_task_stopped(
+    task_id: int,
+    db
+):
+
+    try:
+
+        db.rollback()
+
+        task = db.scalar(
+            select(Task).where(
+                Task.id == task_id
+            )
+        )
+
+        if task is None:
+
+            return
+
+        task.status = "STOPPED"
+
+        task.current_task_id = None
+
+        db.commit()
+
+        db.refresh(task)
+
+    except Exception as recovery_error:
+
+        db.rollback()
+
+        print(
+            f"[TASK RUNNER] Could not mark "
+            f"task {task_id} as STOPPED: "
+            f"{recovery_error}",
+            flush=True
+        )
 
 
 def run_task(
@@ -90,7 +189,8 @@ def run_task(
 ):
 
     print(
-        f"[TASK RUNNER] Starting task {task_id}"
+        f"[TASK RUNNER] Starting task {task_id}",
+        flush=True
     )
 
     db = SessionLocal()
@@ -98,7 +198,8 @@ def run_task(
     try:
 
         print(
-            f"[TASK RUNNER] Loading task {task_id}"
+            f"[TASK RUNNER] Loading task {task_id}",
+            flush=True
         )
 
         task = db.scalar(
@@ -111,14 +212,16 @@ def run_task(
 
             print(
                 f"[TASK RUNNER] Task {task_id} "
-                "was not found."
+                "was not found.",
+                flush=True
             )
 
             return
 
         print(
             f"[TASK RUNNER] Task {task_id} "
-            f"current status: {task.status}"
+            f"current status: {task.status}",
+            flush=True
         )
 
         # The user may have stopped the task
@@ -127,7 +230,8 @@ def run_task(
 
             print(
                 f"[TASK RUNNER] Task {task_id} "
-                "was already stopped."
+                "was already stopped.",
+                flush=True
             )
 
             return
@@ -196,12 +300,14 @@ def run_task(
 
         print(
             f"[TASK RUNNER] Task {task_id} "
-            "status changed to RUNNING."
+            "status changed to RUNNING.",
+            flush=True
         )
 
         print(
             f"[TASK RUNNER] Invoking LangGraph "
-            f"for task {task_id}..."
+            f"for task {task_id}...",
+            flush=True
         )
 
         try:
@@ -213,34 +319,22 @@ def run_task(
 
             print(
                 f"[TASK RUNNER] LangGraph completed "
-                f"for task {task_id}."
-            )
-
-            print(
-                f"[TASK RUNNER] Final workflow state: "
-                f"{result}"
+                f"for task {task_id}.",
+                flush=True
             )
 
         except TaskStopped:
 
             print(
                 f"[TASK RUNNER] Task {task_id} "
-                "was stopped."
+                "was stopped.",
+                flush=True
             )
 
-            task = db.scalar(
-                select(Task).where(
-                    Task.id == task_id
-                )
+            mark_task_stopped(
+                task_id,
+                db
             )
-
-            if task is not None:
-
-                task.status = "STOPPED"
-
-                task.current_task_id = None
-
-                db.commit()
 
             return
 
@@ -248,24 +342,16 @@ def run_task(
 
             print(
                 f"[TASK RUNNER] ERROR while running "
-                f"task {task_id}: {error}"
+                f"task {task_id}: {error}",
+                flush=True
             )
 
             traceback.print_exc()
 
-            task = db.scalar(
-                select(Task).where(
-                    Task.id == task_id
-                )
+            mark_task_failed(
+                task_id,
+                db
             )
-
-            if task is not None:
-
-                if task.status != "STOPPED":
-
-                    task.status = "FAILED"
-
-                    db.commit()
 
             return
 
@@ -277,60 +363,50 @@ def run_task(
 
         print(
             f"[TASK RUNNER] Task {task_id} "
-            "state synchronized to database."
+            "state synchronized to database.",
+            flush=True
+        )
+
+        print(
+            f"[TASK RUNNER] Task {task_id} "
+            f"final status: {task.status}",
+            flush=True
         )
 
     except TaskStopped:
 
         print(
             f"[TASK RUNNER] Task {task_id} "
-            "was stopped."
+            "was stopped.",
+            flush=True
         )
 
-        task = db.scalar(
-            select(Task).where(
-                Task.id == task_id
-            )
+        mark_task_stopped(
+            task_id,
+            db
         )
-
-        if task is not None:
-
-            task.status = "STOPPED"
-
-            task.current_task_id = None
-
-            db.commit()
 
     except Exception as error:
 
         print(
             f"[TASK RUNNER] UNEXPECTED ERROR "
-            f"for task {task_id}: {error}"
+            f"for task {task_id}: {error}",
+            flush=True
         )
 
         traceback.print_exc()
 
-        task = db.scalar(
-            select(Task).where(
-                Task.id == task_id
-            )
+        mark_task_failed(
+            task_id,
+            db
         )
-
-        if task is not None:
-
-            # Do not turn a user-stopped task
-            # into FAILED because of a late exception.
-            if task.status != "STOPPED":
-
-                task.status = "FAILED"
-
-                db.commit()
 
     finally:
 
         print(
             f"[TASK RUNNER] Closing database "
-            f"connection for task {task_id}."
+            f"connection for task {task_id}.",
+            flush=True
         )
 
         db.close()

@@ -1,9 +1,25 @@
+import os
+from pathlib import Path
+
 import chromadb
 
 
-# Create a local persistent ChromaDB database
+# Create a stable local persistent ChromaDB database.
+# By default it is stored inside the project's rag/chroma_db
+# directory, regardless of the process's current working directory.
+DEFAULT_DB_PATH = (
+    Path(__file__).resolve().parent / "chroma_db"
+)
+
+CHROMA_DB_PATH = Path(
+    os.getenv(
+        "CHROMA_DB_PATH",
+        str(DEFAULT_DB_PATH)
+    )
+).resolve()
+
 client = chromadb.PersistentClient(
-    path="./rag/chroma_db"
+    path=str(CHROMA_DB_PATH)
 )
 
 
@@ -29,6 +45,21 @@ def add_documents(
     Add document chunks and their metadata to ChromaDB.
     """
 
+    if not (
+        len(documents)
+        == len(ids)
+        == len(metadatas)
+    ):
+
+        raise ValueError(
+            "documents, ids, and metadatas "
+            "must contain the same number of items."
+        )
+
+    if not documents:
+
+        return
+
     collection = get_collection()
 
     collection.add(
@@ -45,6 +76,26 @@ def search_documents(
     """
     Search the knowledge base using semantic similarity.
     """
+
+    if not isinstance(query, str):
+
+        raise TypeError(
+            "query must be a string."
+        )
+
+    query = query.strip()
+
+    if not query:
+
+        raise ValueError(
+            "query cannot be empty."
+        )
+
+    if n_results <= 0:
+
+        raise ValueError(
+            "n_results must be greater than 0."
+        )
 
     collection = get_collection()
 
@@ -66,10 +117,15 @@ def reset_collection():
     """
 
     try:
+
         client.delete_collection(
             name=COLLECTION_NAME
         )
-    except Exception:
+
+    except ValueError:
+
+        # ChromaDB raises ValueError when the
+        # requested collection does not exist.
         pass
 
     return client.get_or_create_collection(

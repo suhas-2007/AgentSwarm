@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import (
     APIRouter,
@@ -187,19 +187,16 @@ def forgot_password(
 
         db.commit()
 
-
         frontend_url = os.getenv(
             "FRONTEND_URL",
             "http://localhost:5173"
         ).rstrip("/")
-
 
         reset_link = (
             f"{frontend_url}"
             f"/reset-password?token="
             f"{reset_token}"
         )
-
 
         try:
 
@@ -220,7 +217,6 @@ def forgot_password(
             )
 
             print(str(exc))
-
 
     return ForgotPasswordResponse(
         message=(
@@ -267,7 +263,10 @@ def reset_password(
             detail="Invalid or expired reset token."
         )
 
-    if datetime.utcnow() > user.reset_token_expires_at:
+    if (
+        datetime.now(timezone.utc)
+        > user.reset_token_expires_at
+    ):
 
         user.reset_token_hash = None
 
@@ -280,15 +279,30 @@ def reset_password(
             detail="Invalid or expired reset token."
         )
 
-    user.password_hash = hash_password(
-        request.new_password
-    )
+    try:
 
-    user.reset_token_hash = None
+        new_password_hash = hash_password(
+            request.new_password
+        )
 
-    user.reset_token_expires_at = None
+        user.password_hash = (
+            new_password_hash
+        )
 
-    db.commit()
+        # Invalidate the reset token
+        # at the same time as changing
+        # the password.
+        user.reset_token_hash = None
+
+        user.reset_token_expires_at = None
+
+        db.commit()
+
+    except Exception:
+
+        db.rollback()
+
+        raise
 
     return ResetPasswordResponse(
         message="Password reset successfully."

@@ -13,7 +13,8 @@ def test_complete_workflow_with_revision(monkeypatch):
 
     def fake_planner_agent(goal):
 
-        return [
+        return {
+        "tasks": [
             {
                 "task_id": 1,
                 "description": (
@@ -33,7 +34,7 @@ def test_complete_workflow_with_revision(monkeypatch):
                 "depends_on": [1]
             }
         ]
-
+    }
     # --------------------------------------------------
     # Fake Researcher
     # --------------------------------------------------
@@ -179,6 +180,8 @@ def test_complete_workflow_with_revision(monkeypatch):
     # --------------------------------------------------
 
     initial_state = {
+
+        "task_id": 1,
         "user_goal": "Build a FastAPI application",
 
         "plan": "",
