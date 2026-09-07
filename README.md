@@ -959,6 +959,3 @@ MIT License
 **Raavi Suhas**
 
 GitHub: [https://github.com/suhas-2007/AgentSwarm](https://github.com/suhas-2007/AgentSwarm)
-
-
-This is the version I'd use for your GitHub repository. It is detailed enough for a recruiter/developer to understand the architecture, but it doesn't turn the README into a giant technical report.
