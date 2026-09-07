@@ -1,0 +1,94 @@
+**generate_pdf.py**
+```python
+#!/usr/bin/env python3
+"""
+generate_pdf.py
+
+Creates a PDF file containing the text "Hello World" and saves it to the
+specified location.
+
+Usage:
+    python generate_pdf.py output.pdf
+"""
+
+import sys
+import os
+from pathlib import Path
+
+try:
+    # ReportLab is a widely‑used library for PDF generation.
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import LETTER
+except ImportError as e:
+    sys.stderr.write(
+        "Error: The 'reportlab' package is required to run this script.\n"
+        "Install it with: pip install -r requirements.txt\n"
+    )
+    raise e
+
+
+def generate_pdf(output_path: Path) -> None:
+    """
+    Generate a PDF containing the text "Hello World".
+
+    Parameters
+    ----------
+    output_path : pathlib.Path
+        Destination file path for the generated PDF. Parent directories are
+        created automatically if they do not exist.
+
+    Raises
+    ------
+    OSError
+        If the file cannot be written (e.g., permission issues).
+    """
+    # Ensure the parent directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        c = canvas.Canvas(str(output_path), pagesize=LETTER)
+        width, height = LETTER
+
+        # Simple centered text
+        text = "Hello World"
+        font_name = "Helvetica"
+        font_size = 24
+
+        c.setFont(font_name, font_size)
+        text_width = c.stringWidth(text, font_name, font_size)
+        x = (width - text_width) / 2
+        y = height / 2
+
+        c.drawString(x, y, text)
+        c.showPage()
+        c.save()
+        print(f"PDF successfully created at: {output_path}")
+    except Exception as exc:
+        raise OSError(f"Failed to write PDF to {output_path}") from exc
+
+
+def _cli():
+    if len(sys.argv) != 2:
+        sys.stderr.write("Usage: python generate_pdf.py <output_path.pdf>\n")
+        sys.exit(1)
+
+    output_file = Path(sys.argv[1]).expanduser().resolve()
+    if output_file.suffix.lower() != ".pdf":
+        sys.stderr.write("Error: Output file must have a .pdf extension.\n")
+        sys.exit(1)
+
+    try:
+        generate_pdf(output_file)
+    except OSError as e:
+        sys.stderr.write(str(e) + "\n")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    _cli()
+```
+
+**requirements.txt**
+```
+reportlab>=3.6.0
+```

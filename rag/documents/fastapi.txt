@@ -1,0 +1,75 @@
+FastAPI is a Python framework for building APIs.
+
+FastAPI uses Python type hints to define API parameters and request data.
+
+Pydantic models can be used to validate request bodies. Request data should be validated before it is processed by application logic.
+
+FastAPI automatically generates interactive API documentation.
+
+The Swagger UI documentation is normally available at /docs.
+
+FastAPI applications can be served using an ASGI server such as Uvicorn.
+
+API endpoints can define different HTTP methods such as GET and POST.
+
+GET requests are commonly used to retrieve data from a server.
+
+POST requests are commonly used to submit data to a server.
+
+PUT requests can be used to update existing resources.
+
+DELETE requests can be used to remove resources.
+
+Path parameters are values included directly in the URL path.
+
+Query parameters are values included in the URL after a question mark.
+
+Request bodies contain structured data sent by the client to the API.
+
+Pydantic models provide a structured way to define and validate request body data.
+
+An API should return appropriate HTTP status codes to communicate the result of a request.
+
+A 200 status code generally indicates a successful request.
+
+A 201 status code can indicate that a new resource was successfully created.
+
+A 400 status code indicates that the request contains invalid input.
+
+A 404 status code indicates that the requested resource was not found.
+
+A 500 status code indicates an internal server error.
+
+FastAPI supports dependency injection for sharing common functionality between endpoints.
+
+Dependencies can be used for authentication, database connections, configuration, and reusable validation logic.
+
+FastAPI supports asynchronous endpoint functions using Python async and await syntax.
+
+Asynchronous endpoints can be useful when an application performs operations involving network or other I/O operations.
+
+FastAPI applications can be organized into multiple routers.
+
+APIRouter can be used to group related endpoints into separate modules.
+
+Separating routers helps keep larger applications organized and maintainable.
+
+Environment variables can be used to store configuration values.
+
+Sensitive configuration such as API keys should not be hard-coded directly into source code.
+
+Applications should handle exceptions and return useful error responses.
+
+Testing API endpoints helps verify that request validation, business logic, and error handling work correctly.
+
+FastAPI applications can be tested using HTTP clients and test frameworks.
+
+Authentication and authorization should be implemented carefully when an API exposes protected resources.
+
+Incoming data should always be treated as untrusted input and validated before use.
+
+Database operations should handle connection failures and other possible errors.
+
+API documentation should clearly describe endpoints, parameters, request bodies, and responses.
+
+A well-designed API separates routing, validation, business logic, and data access responsibilities.
