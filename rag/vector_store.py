@@ -46,6 +46,17 @@ def add_documents(
     """
 
     if not (
+        isinstance(documents, list)
+        and isinstance(ids, list)
+        and isinstance(metadatas, list)
+    ):
+
+        raise TypeError(
+            "documents, ids, and metadatas "
+            "must be lists."
+        )
+
+    if not (
         len(documents)
         == len(ids)
         == len(metadatas)
@@ -59,6 +70,42 @@ def add_documents(
     if not documents:
 
         return
+
+    for document in documents:
+
+        if not isinstance(
+            document,
+            str
+        ) or not document.strip():
+
+            raise ValueError(
+                "documents must contain "
+                "non-empty strings."
+            )
+
+    for document_id in ids:
+
+        if not isinstance(
+            document_id,
+            str
+        ) or not document_id.strip():
+
+            raise ValueError(
+                "ids must contain "
+                "non-empty strings."
+            )
+
+    for metadata in metadatas:
+
+        if not isinstance(
+            metadata,
+            dict
+        ):
+
+            raise TypeError(
+                "metadatas must contain "
+                "dictionaries."
+            )
 
     collection = get_collection()
 
@@ -75,9 +122,15 @@ def search_documents(
 ):
     """
     Search the knowledge base using semantic similarity.
+
+    If the knowledge base is empty, return an empty
+    result structure instead of failing.
     """
 
-    if not isinstance(query, str):
+    if not isinstance(
+        query,
+        str
+    ):
 
         raise TypeError(
             "query must be a string."
@@ -91,6 +144,15 @@ def search_documents(
             "query cannot be empty."
         )
 
+    if not isinstance(
+        n_results,
+        int
+    ):
+
+        raise TypeError(
+            "n_results must be an integer."
+        )
+
     if n_results <= 0:
 
         raise ValueError(
@@ -98,6 +160,22 @@ def search_documents(
         )
 
     collection = get_collection()
+
+    document_count = collection.count()
+
+    if document_count == 0:
+
+        return {
+            "documents": [[]],
+            "distances": [[]],
+            "ids": [[]],
+            "metadatas": [[]]
+        }
+
+    n_results = min(
+        n_results,
+        document_count
+    )
 
     return collection.query(
         query_texts=[query],

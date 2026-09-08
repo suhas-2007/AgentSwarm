@@ -12,7 +12,11 @@ def retrieve_documents(
     that can be used by other AgentSwarm components.
     """
 
-    if not isinstance(query, str):
+    if not isinstance(
+        query,
+        str
+    ):
+
         raise TypeError(
             "query must be a string."
         )
@@ -20,16 +24,22 @@ def retrieve_documents(
     query = query.strip()
 
     if not query:
+
         raise ValueError(
             "query cannot be empty."
         )
 
-    if not isinstance(n_results, int):
+    if not isinstance(
+        n_results,
+        int
+    ):
+
         raise TypeError(
             "n_results must be an integer."
         )
 
     if n_results <= 0:
+
         raise ValueError(
             "n_results must be greater than 0."
         )
@@ -42,22 +52,46 @@ def retrieve_documents(
     documents = results.get(
         "documents",
         [[]]
-    )[0]
+    )
 
     distances = results.get(
         "distances",
         [[]]
-    )[0]
+    )
 
     ids = results.get(
         "ids",
         [[]]
-    )[0]
+    )
 
     metadatas = results.get(
         "metadatas",
         [[]]
-    )[0]
+    )
+
+    documents = (
+        documents[0]
+        if documents
+        else []
+    )
+
+    distances = (
+        distances[0]
+        if distances
+        else []
+    )
+
+    ids = (
+        ids[0]
+        if ids
+        else []
+    )
+
+    metadatas = (
+        metadatas[0]
+        if metadatas
+        else []
+    )
 
     retrieved = []
 
@@ -68,6 +102,10 @@ def retrieve_documents(
         metadata = (
             metadatas[index]
             if index < len(metadatas)
+            and isinstance(
+                metadatas[index],
+                dict
+            )
             else {}
         )
 
@@ -105,6 +143,7 @@ def format_retrieval_results(
     """
 
     if not results:
+
         return (
             "No relevant documents were "
             "retrieved from the knowledge base."
@@ -117,25 +156,37 @@ def format_retrieval_results(
         start=1
     ):
 
-        distance = result["distance"]
+        distance = result.get(
+            "distance"
+        )
 
         if distance is None:
+
             distance_text = "N/A"
+
         else:
-            distance_text = f"{distance:.4f}"
+
+            distance_text = (
+                f"{distance:.4f}"
+            )
+
+        content = result.get(
+            "content",
+            ""
+        )
 
         sections.append(
             f"""
 Document {index}
 
-ID: {result["id"]}
-Source: {result["source"]}
-Chunk ID: {result["chunk_id"]}
+ID: {result.get("id", "N/A")}
+Source: {result.get("source", "N/A")}
+Chunk ID: {result.get("chunk_id", "N/A")}
 Distance: {distance_text}
-Character count: {len(result["content"])}
+Character count: {len(content)}
 
 Content:
-{result["content"]}
+{content}
 """.strip()
         )
 
