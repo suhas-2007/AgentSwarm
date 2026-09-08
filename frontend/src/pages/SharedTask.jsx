@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import "./SharedTask.css";
+import { API_URL } from "../config";
 
 
 function ResultSection({
@@ -60,7 +61,7 @@ function SharedTask() {
       try {
 
         const response = await fetch(
-          `http://localhost:8000/share/${encodeURIComponent(token)}`
+          `${API_URL}/share/${encodeURIComponent(token)}`
         );
 
         if (!response.ok) {

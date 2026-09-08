@@ -12,8 +12,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./Dashboard.css";
-
-const API_URL = "http://127.0.0.1:8000";
+import { API_URL } from "../config";
 
 
 function Dashboard() {

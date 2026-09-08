@@ -876,6 +876,11 @@ AgentSwarm implements defense-in-depth across API, database, and file system bou
 
 # Production Deployment Guide
 
+For a full step-by-step walkthrough of deploying to **Render** or **Railway**, see the [DEPLOYMENT.md](DEPLOYMENT.md) guide.
+
+### 1-Click Blueprint (Render)
+AgentSwarm includes an Infrastructure-as-Code [render.yaml](render.yaml) specification that provisions the managed PostgreSQL database, FastAPI backend, and React static site automatically.
+
 ### Environment Configuration
 
 AgentSwarm requires standard environment variables. Copy the template and fill in your credentials:
@@ -885,7 +890,7 @@ copy .env.example .env
 ```
 
 > [!IMPORTANT]
-> Never commit your `.env` file or hardcode actual API keys into source files. All configuration is loaded dynamically via `python-dotenv`.
+> Never commit your `.env` file or hardcode actual API keys into source files. All configuration is loaded dynamically via `python-dotenv`. In production, set these variables in your hosting provider's dashboard.
 
 ### Docker Container Deployment
 

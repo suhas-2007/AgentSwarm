@@ -4,6 +4,7 @@ import {
     Eye,
     EyeOff
 } from "lucide-react";
+import { API_URL } from "../config";
 
 function Login() {
     const navigate = useNavigate();
@@ -24,7 +25,7 @@ function Login() {
 
         try {
             const response = await fetch(
-                "http://127.0.0.1:8000/auth/login",
+                `${API_URL}/auth/login`,
                 {
                     method: "POST",
 

@@ -1,4 +1,5 @@
 import json
+import os
 import secrets
 
 from fastapi import (
@@ -65,15 +66,37 @@ class ApprovalRequest(BaseModel):
 
 
 # ============================================================
-# CORS
+# CORS CONFIGURATION
 # ============================================================
+
+def get_allowed_origins() -> list[str]:
+    origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ]
+
+    frontend_url = os.getenv("FRONTEND_URL")
+    if frontend_url:
+        cleaned_frontend = frontend_url.strip().rstrip("/")
+        if cleaned_frontend and cleaned_frontend not in origins:
+            origins.append(cleaned_frontend)
+
+    additional_origins = os.getenv("ALLOWED_ORIGINS")
+    if additional_origins:
+        for origin in additional_origins.split(","):
+            cleaned = origin.strip().rstrip("/")
+            if cleaned and cleaned not in origins:
+                origins.append(cleaned)
+
+    return origins
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=get_allowed_origins(),
+    allow_origin_regex=r"https:\/\/.*\.onrender\.com|https:\/\/.*\.up\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
