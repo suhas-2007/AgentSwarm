@@ -9,7 +9,10 @@ from database.models import Task
 
 from graph.workflow import app as workflow_app
 
-from services.task_control import TaskStopped
+from services.task_control import (
+    TaskStopped,
+    validate_status_transition
+)
 
 
 MAX_ATTEMPTS = 3
@@ -61,12 +64,26 @@ def sync_task_from_state(
     state: dict,
     db
 ):
+    """
+    Synchronize the persisted task with the latest
+    LangGraph checkpoint state.
+
+    Checkpoint states may skip intermediate lifecycle
+    statuses, so transition validation is intentionally
+    not performed here.
+
+    The database condition protects STOPPED tasks from
+    being overwritten by an older or concurrent worker.
+    """
+
+    new_status = state.get(
+        "status",
+        task.status
+    )
 
     values = {
-        "status": state.get(
-            "status",
-            task.status
-        ),
+        "status":
+            new_status,
 
         "plan": state.get(
             "plan",
@@ -149,9 +166,12 @@ def claim_task(
     Atomically claim a newly created task.
 
     Only STARTING tasks can be claimed.
-    This prevents duplicate workers from
-    simultaneously starting the same new task.
     """
+
+    validate_status_transition(
+        "STARTING",
+        "RUNNING"
+    )
 
     result = db.execute(
         update(Task)
@@ -173,10 +193,7 @@ def get_checkpoint_state(
     config: dict
 ):
     """
-    Read the latest LangGraph checkpoint for
-    this task.
-
-    Returns None when no checkpoint exists.
+    Read the latest LangGraph checkpoint.
     """
 
     try:
@@ -229,6 +246,15 @@ def mark_task_failed(
 
             return
 
+        if task.status == "FAILED":
+
+            return
+
+        validate_status_transition(
+            task.status,
+            "FAILED"
+        )
+
         task.status = "FAILED"
 
         task.current_task_id = None
@@ -268,6 +294,23 @@ def mark_task_stopped(
 
             return
 
+        if task.status == "STOPPED":
+
+            return
+
+        if task.status == "COMPLETED":
+
+            return
+
+        if task.status == "FAILED":
+
+            return
+
+        validate_status_transition(
+            task.status,
+            "STOPPED"
+        )
+
         task.status = "STOPPED"
 
         task.current_task_id = None
@@ -297,10 +340,6 @@ def run_workflow_with_retry(
     """
     Execute LangGraph with limited retries for
     temporary external-service failures.
-
-    When resume=True, the existing PostgreSQL
-    checkpoint is used instead of creating a
-    new workflow state.
     """
 
     for attempt in range(
@@ -430,10 +469,6 @@ def run_task(
             }
         }
 
-        # ----------------------------------------------------
-        # CHECK FOR AN EXISTING LANGGRAPH CHECKPOINT
-        # ----------------------------------------------------
-
         checkpoint_state = (
             get_checkpoint_state(
                 config
@@ -443,10 +478,6 @@ def run_task(
         has_checkpoint = (
             checkpoint_state is not None
         )
-
-        # ----------------------------------------------------
-        # NEW TASK
-        # ----------------------------------------------------
 
         if task.status == "STARTING":
 
@@ -476,28 +507,23 @@ def run_task(
                 flush=True
             )
 
-        # ----------------------------------------------------
-        # EXISTING RUNNING TASK
-        # ----------------------------------------------------
-
         elif task.status == "RUNNING":
 
-            if not has_checkpoint:
+            if has_checkpoint:
 
                 print(
-                    f"[TASK RUNNER] Task {task_id} "
-                    "is RUNNING but has no existing "
-                    "LangGraph checkpoint. Starting "
-                    "a fresh workflow execution.",
+                    f"[TASK RUNNER] Existing checkpoint "
+                    f"found for task {task_id}. "
+                    "Workflow will resume.",
                     flush=True
                 )
 
             else:
 
                 print(
-                    f"[TASK RUNNER] Existing checkpoint "
-                    f"found for task {task_id}. "
-                    "Workflow will resume.",
+                    f"[TASK RUNNER] Task {task_id} "
+                    "is RUNNING but has no checkpoint. "
+                    "Starting a fresh workflow.",
                     flush=True
                 )
 
@@ -511,10 +537,6 @@ def run_task(
             )
 
             return
-
-        # ----------------------------------------------------
-        # CREATE INITIAL STATE ONLY FOR A NEW EXECUTION
-        # ----------------------------------------------------
 
         initial_state = {
 
@@ -582,14 +604,13 @@ def run_task(
         try:
 
             result = run_workflow_with_retry(
-                initial_state=None
-                if has_checkpoint
-                else initial_state,
-
+                initial_state=(
+                    None
+                    if has_checkpoint
+                    else initial_state
+                ),
                 config=config,
-
                 task_id=task_id,
-
                 resume=has_checkpoint
             )
 
