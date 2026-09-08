@@ -49,39 +49,59 @@ export default function GoogleLoginButton({ onError }) {
     }
 
     useEffect(() => {
-        if (!googleClientId) {
+        const isRealClientId = googleClientId && 
+            googleClientId !== "placeholder" && 
+            googleClientId !== "optional" && 
+            googleClientId.trim().length > 10;
+
+        if (!isRealClientId) {
             setIsConfigured(false);
             return;
         }
 
         setIsConfigured(true);
 
+        let isMounted = true;
+        let retryCount = 0;
+
         const checkGoogleScript = () => {
-            if (window.google?.accounts?.id && buttonRef.current) {
-                window.google.accounts.id.initialize({
-                    client_id: googleClientId,
-                    callback: handleCredentialResponse,
-                    auto_select: false
-                });
+            if (!isMounted) return;
 
-                // Clear container before rendering
-                buttonRef.current.innerHTML = "";
+            try {
+                if (window.google?.accounts?.id && buttonRef.current) {
+                    window.google.accounts.id.initialize({
+                        client_id: googleClientId,
+                        callback: handleCredentialResponse,
+                        auto_select: false
+                    });
 
-                window.google.accounts.id.renderButton(buttonRef.current, {
-                    theme: "outline",
-                    size: "large",
-                    type: "standard",
-                    text: "signin_with",
-                    shape: "rectangular",
-                    logo_alignment: "left",
-                    width: 340
-                });
-            } else {
-                setTimeout(checkGoogleScript, 300);
+                    // Clear container before rendering
+                    buttonRef.current.innerHTML = "";
+
+                    window.google.accounts.id.renderButton(buttonRef.current, {
+                        theme: "outline",
+                        size: "large",
+                        type: "standard",
+                        text: "signin_with",
+                        shape: "rectangular",
+                        logo_alignment: "left",
+                        width: 340
+                    });
+                } else if (retryCount < 15) {
+                    retryCount++;
+                    setTimeout(checkGoogleScript, 300);
+                }
+            } catch (err) {
+                console.warn("Google Sign-In initialization error:", err);
+                if (isMounted) setIsConfigured(false);
             }
         };
 
         checkGoogleScript();
+
+        return () => {
+            isMounted = false;
+        };
     }, [googleClientId]);
 
     const handleUnconfiguredClick = () => {
