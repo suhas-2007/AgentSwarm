@@ -225,7 +225,8 @@ def get_checkpoint_state(
 
 def mark_task_failed(
     task_id: int,
-    db
+    db,
+    error_message: str | None = None
 ):
 
     try:
@@ -247,7 +248,9 @@ def mark_task_failed(
             return
 
         if task.status == "FAILED":
-
+            if error_message and not task.final_answer:
+                task.final_answer = error_message
+                db.commit()
             return
 
         validate_status_transition(
@@ -258,6 +261,9 @@ def mark_task_failed(
         task.status = "FAILED"
 
         task.current_task_id = None
+
+        if error_message:
+            task.final_answer = error_message
 
         db.commit()
 
@@ -550,6 +556,22 @@ def run_task(
             "tavily": user.tavily_api_key if user and user.tavily_api_key else None
         }
 
+        server_groq = os.getenv("GROQ_API_KEY")
+        has_groq = bool(user_api_keys.get("groq")) or (bool(server_groq) and server_groq.strip().lower() not in ("optional", "placeholder", "none", ""))
+
+        if not has_groq:
+            missing_msg = (
+                "### 🔑 Groq API Key Required\n\n"
+                "AgentSwarm could not run this task because no **Groq API Key** was found for your account.\n\n"
+                "Because AgentSwarm uses a **Bring-Your-Own-Key (BYOK)** model so your credits are used:\n"
+                "1. Click **'API Keys & Credits'** in the left sidebar.\n"
+                "2. Paste your personal Groq API key (get one for free at [console.groq.com/keys](https://console.groq.com/keys)).\n"
+                "3. Click **Save Keys**, then submit your question again!"
+            )
+            print(f"[TASK RUNNER] Task {task_id} failed: missing Groq key", flush=True)
+            mark_task_failed(task_id, db, error_message=missing_msg)
+            return
+
         if has_checkpoint and any(user_api_keys.values()):
             try:
                 workflow_app.update_state(
@@ -674,7 +696,8 @@ def run_task(
 
             mark_task_failed(
                 task_id,
-                db
+                db,
+                error_message=f"### ⚠️ Task Failed\n\n`{error}`"
             )
 
             return
@@ -722,7 +745,8 @@ def run_task(
 
         mark_task_failed(
             task_id,
-            db
+            db,
+            error_message=f"### ⚠️ Unexpected System Error\n\n`{error}`"
         )
 
     finally:

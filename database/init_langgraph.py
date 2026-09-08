@@ -41,6 +41,15 @@ def get_psycopg_url() -> str:
             1
         )
 
+    if DATABASE_URL.startswith(
+        "postgres://"
+    ):
+        return DATABASE_URL.replace(
+            "postgres://",
+            "postgresql://",
+            1
+        )
+
     return DATABASE_URL
 
 

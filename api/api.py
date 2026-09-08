@@ -78,6 +78,11 @@ def init_db():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    try:
+        from database.init_langgraph import init_langgraph_checkpoint
+        init_langgraph_checkpoint()
+    except Exception as exc:
+        print(f"[LANGGRAPH INIT] Notice: {exc}", flush=True)
     yield
 
 
