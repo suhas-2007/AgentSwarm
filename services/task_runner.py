@@ -1,4 +1,5 @@
 import json
+import time
 import traceback
 
 from sqlalchemy import select, update
@@ -9,6 +10,50 @@ from database.models import Task
 from graph.workflow import app as workflow_app
 
 from services.task_control import TaskStopped
+
+
+MAX_ATTEMPTS = 3
+RETRY_DELAYS = [2, 4]
+
+
+def is_retryable_error(
+    error: Exception
+) -> bool:
+    """
+    Determine whether an exception is likely
+    to be caused by a temporary external
+    service or network problem.
+    """
+
+    error_text = str(error).lower()
+
+    retryable_terms = [
+        "timeout",
+        "timed out",
+        "connection",
+        "connecterror",
+        "connectionerror",
+        "connection reset",
+        "temporarily unavailable",
+        "service unavailable",
+        "server error",
+        "internal server error",
+        "rate limit",
+        "rate_limit",
+        "too many requests",
+        "resource exhausted",
+        "resource_exhausted",
+        "429",
+        "502",
+        "503",
+        "504",
+        "unavailable"
+    ]
+
+    return any(
+        term in error_text
+        for term in retryable_terms
+    )
 
 
 def sync_task_from_state(
@@ -89,10 +134,6 @@ def sync_task_from_state(
 
     db.refresh(task)
 
-    # If the task was stopped by the user
-    # before this synchronization committed,
-    # the conditional UPDATE affects zero rows.
-    # STOPPED therefore remains authoritative.
     if result.rowcount == 0:
 
         db.refresh(task)
@@ -119,8 +160,6 @@ def mark_task_failed(
 
             return
 
-        # Never overwrite a task that the
-        # user has explicitly stopped.
         if task.status == "STOPPED":
 
             return
@@ -184,6 +223,74 @@ def mark_task_stopped(
         )
 
 
+def run_workflow_with_retry(
+    initial_state: dict,
+    config: dict,
+    task_id: int
+):
+    """
+    Execute LangGraph with limited retries for
+    temporary external-service failures.
+
+    TaskStopped is never retried.
+    """
+
+    for attempt in range(
+        1,
+        MAX_ATTEMPTS + 1
+    ):
+
+        try:
+
+            print(
+                f"[TASK RUNNER] Workflow attempt "
+                f"{attempt}/{MAX_ATTEMPTS} "
+                f"for task {task_id}.",
+                flush=True
+            )
+
+            return workflow_app.invoke(
+                initial_state,
+                config
+            )
+
+        except TaskStopped:
+
+            raise
+
+        except Exception as error:
+
+            retryable = is_retryable_error(
+                error
+            )
+
+            if (
+                not retryable
+                or attempt >= MAX_ATTEMPTS
+            ):
+
+                raise
+
+            delay = RETRY_DELAYS[
+                attempt - 1
+            ]
+
+            print(
+                f"[TASK RUNNER] Temporary error "
+                f"for task {task_id}. "
+                f"Retrying in {delay}s...",
+                flush=True
+            )
+
+            time.sleep(
+                delay
+            )
+
+    raise RuntimeError(
+        "Workflow retry loop exited unexpectedly."
+    )
+
+
 def run_task(
     task_id: int
 ):
@@ -224,8 +331,6 @@ def run_task(
             flush=True
         )
 
-        # The user may have stopped the task
-        # before the background task started.
         if task.status == "STOPPED":
 
             print(
@@ -312,9 +417,10 @@ def run_task(
 
         try:
 
-            result = workflow_app.invoke(
+            result = run_workflow_with_retry(
                 initial_state,
-                config
+                config,
+                task_id
             )
 
             print(
