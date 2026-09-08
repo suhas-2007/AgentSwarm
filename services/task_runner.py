@@ -146,13 +146,11 @@ def claim_task(
     db
 ) -> bool:
     """
-    Atomically claim a task for execution.
+    Atomically claim a newly created task.
 
-    Only a task currently in STARTING state
-    can be changed to RUNNING.
-
-    This prevents two workers from executing
-    the same task simultaneously.
+    Only STARTING tasks can be claimed.
+    This prevents duplicate workers from
+    simultaneously starting the same new task.
     """
 
     result = db.execute(
@@ -169,6 +167,43 @@ def claim_task(
     db.commit()
 
     return result.rowcount == 1
+
+
+def get_checkpoint_state(
+    config: dict
+):
+    """
+    Read the latest LangGraph checkpoint for
+    this task.
+
+    Returns None when no checkpoint exists.
+    """
+
+    try:
+
+        snapshot = workflow_app.get_state(
+            config
+        )
+
+    except Exception as error:
+
+        print(
+            "[TASK RUNNER] Could not load "
+            f"LangGraph checkpoint: {error}",
+            flush=True
+        )
+
+        return None
+
+    if snapshot is None:
+
+        return None
+
+    if not snapshot.values:
+
+        return None
+
+    return snapshot.values
 
 
 def mark_task_failed(
@@ -254,15 +289,18 @@ def mark_task_stopped(
 
 
 def run_workflow_with_retry(
-    initial_state: dict,
+    initial_state: dict | None,
     config: dict,
-    task_id: int
+    task_id: int,
+    resume: bool = False
 ):
     """
     Execute LangGraph with limited retries for
     temporary external-service failures.
 
-    TaskStopped is never retried.
+    When resume=True, the existing PostgreSQL
+    checkpoint is used instead of creating a
+    new workflow state.
     """
 
     for attempt in range(
@@ -278,6 +316,20 @@ def run_workflow_with_retry(
                 f"for task {task_id}.",
                 flush=True
             )
+
+            if resume:
+
+                print(
+                    f"[TASK RUNNER] Resuming task "
+                    f"{task_id} from LangGraph "
+                    "checkpoint.",
+                    flush=True
+                )
+
+                return workflow_app.invoke(
+                    None,
+                    config
+                )
 
             return workflow_app.invoke(
                 initial_state,
@@ -371,44 +423,98 @@ def run_task(
 
             return
 
-        # ----------------------------------------------------
-        # ATOMIC TASK CLAIM
-        # ----------------------------------------------------
-        #
-        # Do not simply read STARTING and then set RUNNING.
-        #
-        # Multiple workers could otherwise read STARTING
-        # before either one commits.
-        #
-        # The conditional UPDATE makes the transition
-        # atomic at the database level.
-        #
+        config = {
+            "configurable": {
+                "thread_id":
+                    str(task.id)
+            }
+        }
 
-        claimed = claim_task(
-            task_id,
-            db
+        # ----------------------------------------------------
+        # CHECK FOR AN EXISTING LANGGRAPH CHECKPOINT
+        # ----------------------------------------------------
+
+        checkpoint_state = (
+            get_checkpoint_state(
+                config
+            )
         )
 
-        if not claimed:
+        has_checkpoint = (
+            checkpoint_state is not None
+        )
+
+        # ----------------------------------------------------
+        # NEW TASK
+        # ----------------------------------------------------
+
+        if task.status == "STARTING":
+
+            claimed = claim_task(
+                task_id,
+                db
+            )
+
+            if not claimed:
+
+                db.refresh(task)
+
+                print(
+                    f"[TASK RUNNER] Task {task_id} "
+                    f"could not be claimed. "
+                    f"Current status: {task.status}.",
+                    flush=True
+                )
+
+                return
 
             db.refresh(task)
 
             print(
                 f"[TASK RUNNER] Task {task_id} "
-                f"could not be claimed. "
-                f"Current status: {task.status}.",
+                "claimed successfully.",
+                flush=True
+            )
+
+        # ----------------------------------------------------
+        # EXISTING RUNNING TASK
+        # ----------------------------------------------------
+
+        elif task.status == "RUNNING":
+
+            if not has_checkpoint:
+
+                print(
+                    f"[TASK RUNNER] Task {task_id} "
+                    "is RUNNING but has no existing "
+                    "LangGraph checkpoint. Starting "
+                    "a fresh workflow execution.",
+                    flush=True
+                )
+
+            else:
+
+                print(
+                    f"[TASK RUNNER] Existing checkpoint "
+                    f"found for task {task_id}. "
+                    "Workflow will resume.",
+                    flush=True
+                )
+
+        else:
+
+            print(
+                f"[TASK RUNNER] Task {task_id} "
+                f"has status {task.status}. "
+                "No workflow execution required.",
                 flush=True
             )
 
             return
 
-        db.refresh(task)
-
-        print(
-            f"[TASK RUNNER] Task {task_id} "
-            "claimed successfully.",
-            flush=True
-        )
+        # ----------------------------------------------------
+        # CREATE INITIAL STATE ONLY FOR A NEW EXECUTION
+        # ----------------------------------------------------
 
         initial_state = {
 
@@ -461,16 +567,9 @@ def run_task(
                 "STARTING"
         }
 
-        config = {
-            "configurable": {
-                "thread_id":
-                    str(task.id)
-            }
-        }
-
         print(
             f"[TASK RUNNER] Task {task_id} "
-            "status changed to RUNNING.",
+            "status is RUNNING.",
             flush=True
         )
 
@@ -483,9 +582,15 @@ def run_task(
         try:
 
             result = run_workflow_with_retry(
-                initial_state,
-                config,
-                task_id
+                initial_state=None
+                if has_checkpoint
+                else initial_state,
+
+                config=config,
+
+                task_id=task_id,
+
+                resume=has_checkpoint
             )
 
             print(
