@@ -141,6 +141,36 @@ def sync_task_from_state(
         return
 
 
+def claim_task(
+    task_id: int,
+    db
+) -> bool:
+    """
+    Atomically claim a task for execution.
+
+    Only a task currently in STARTING state
+    can be changed to RUNNING.
+
+    This prevents two workers from executing
+    the same task simultaneously.
+    """
+
+    result = db.execute(
+        update(Task)
+        .where(
+            Task.id == task_id,
+            Task.status == "STARTING"
+        )
+        .values(
+            status="RUNNING"
+        )
+    )
+
+    db.commit()
+
+    return result.rowcount == 1
+
+
 def mark_task_failed(
     task_id: int,
     db
@@ -341,6 +371,45 @@ def run_task(
 
             return
 
+        # ----------------------------------------------------
+        # ATOMIC TASK CLAIM
+        # ----------------------------------------------------
+        #
+        # Do not simply read STARTING and then set RUNNING.
+        #
+        # Multiple workers could otherwise read STARTING
+        # before either one commits.
+        #
+        # The conditional UPDATE makes the transition
+        # atomic at the database level.
+        #
+
+        claimed = claim_task(
+            task_id,
+            db
+        )
+
+        if not claimed:
+
+            db.refresh(task)
+
+            print(
+                f"[TASK RUNNER] Task {task_id} "
+                f"could not be claimed. "
+                f"Current status: {task.status}.",
+                flush=True
+            )
+
+            return
+
+        db.refresh(task)
+
+        print(
+            f"[TASK RUNNER] Task {task_id} "
+            "claimed successfully.",
+            flush=True
+        )
+
         initial_state = {
 
             "task_id":
@@ -398,10 +467,6 @@ def run_task(
                     str(task.id)
             }
         }
-
-        task.status = "RUNNING"
-
-        db.commit()
 
         print(
             f"[TASK RUNNER] Task {task_id} "
