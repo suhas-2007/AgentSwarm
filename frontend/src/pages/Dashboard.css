@@ -1142,6 +1142,223 @@
 
 
 /* =========================================================
+   WORKFLOW BRANCH TIER & DECISION TIER
+========================================================= */
+
+.workflow-branch-tier {
+    border: 1px solid #26313d;
+    border-radius: 11px;
+    background: #151d27;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.2s ease;
+}
+
+.workflow-branch-tier:hover {
+    border-color: #344150;
+}
+
+.workflow-branch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.workflow-branch-label {
+    color: #5e6b7b;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+}
+
+.workflow-branch-sub {
+    color: #94a3b8;
+    font-size: 9px;
+    font-weight: 600;
+}
+
+.workflow-worker-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.worker-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #111821;
+    border: 1px solid #222d3a;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.worker-pill-icon {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.worker-pill-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.worker-pill-info strong {
+    font-size: 10px;
+    color: #cbd5e1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.worker-pill-info span {
+    font-size: 7.5px;
+    color: #64748b;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.worker-pill.worker-active {
+    border-color: #3b82f6;
+    background: #152238;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.25);
+}
+
+.worker-pill.worker-active .worker-pill-icon {
+    color: #60a5fa;
+}
+
+.worker-pill.worker-active strong {
+    color: #ffffff;
+}
+
+.worker-pill.worker-active span {
+    color: #93c5fd;
+}
+
+.worker-pill.worker-done {
+    border-color: #1e3a34;
+    background: #101c1a;
+}
+
+.worker-pill.worker-done .worker-pill-icon {
+    color: #10b981;
+}
+
+.worker-pill.worker-done span {
+    color: #10b981;
+}
+
+.workflow-decision-tier {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.decision-branch {
+    flex: 1;
+    border: 1px solid #26313d;
+    border-radius: 10px;
+    background: #151d27;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.decision-branch:hover {
+    border-color: #344150;
+}
+
+.decision-branch-header {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.decision-icon {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.decision-branch-header strong {
+    font-size: 11px;
+    color: #e2e8f0;
+}
+
+.decision-sub {
+    font-size: 8px;
+    color: #64748b;
+}
+
+.decision-or {
+    font-size: 8px;
+    font-weight: 800;
+    color: #64748b;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: #1b232e;
+    border: 1px solid #26313d;
+    letter-spacing: 0.5px;
+}
+
+.decision-branch.decision-active {
+    border-color: #3b82f6;
+    background: #162238;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.25);
+}
+
+.decision-branch.decision-revising {
+    border-color: #d97706;
+    background: #251c14;
+    box-shadow: 0 0 8px rgba(217, 119, 6, 0.25);
+}
+
+.decision-branch.decision-revising .decision-icon {
+    color: #fbbf24;
+}
+
+.decision-branch.decision-completed {
+    border-color: #059669;
+    background: #0d1e18;
+}
+
+.decision-branch.decision-completed .decision-icon {
+    color: #34d399;
+}
+
+.decision-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 7.5px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+
+.decision-badge.rev {
+    background: #3c2a12;
+    color: #fcd34d;
+    border: 1px solid #78350f;
+}
+
+.decision-badge.done {
+    background: #064e3b;
+    color: #6ee7b7;
+    border: 1px solid #047857;
+}
+
+
+/* =========================================================
    WORKFLOW FOOTER
 ========================================================= */
 

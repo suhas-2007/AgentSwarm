@@ -2052,17 +2052,17 @@ function Dashboard() {
 
                         <div className="workflow-list">
 
+                            {/* Step 1: Planner */}
                             <WorkflowStep
                                 number="01"
                                 icon="✦"
-                                title="Understand"
-                                description="Break down your goal"
+                                title="Planner"
+                                description="Decomposes goal into execution graph"
                                 status={getWorkflowStepStatus(
                                     taskState?.status,
                                     "planner"
                                 )}
                             />
-
 
                             <WorkflowLine
                                 status={getWorkflowLineStatus(
@@ -2071,71 +2071,105 @@ function Dashboard() {
                                 )}
                             />
 
+                            {/* Step 2: Multi-Agent Worker Tier (Branching) */}
+                            <div className="workflow-branch-tier">
+                                <div className="workflow-branch-header">
+                                    <span className="workflow-branch-label">
+                                        02 · WORKERS
+                                    </span>
+                                    <span className="workflow-branch-sub">
+                                        Researcher / Coder / Content
+                                    </span>
+                                </div>
 
-                            <WorkflowStep
-                                number="02"
-                                icon="⌕"
-                                title="Research"
-                                description="Find useful knowledge"
-                                status={getWorkflowStepStatus(
-                                    taskState?.status,
-                                    "researcher"
-                                )}
-                            />
+                                <div className="workflow-worker-grid">
+                                    <div
+                                        className={`worker-pill ${getWorkerPillClass(
+                                            taskState,
+                                            "researcher"
+                                        )}`}
+                                    >
+                                        <span className="worker-pill-icon">⌕</span>
+                                        <div className="worker-pill-info">
+                                            <strong>Researcher</strong>
+                                            <span>
+                                                {getWorkerPillStatusText(
+                                                    taskState,
+                                                    "researcher"
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
 
+                                    <div
+                                        className={`worker-pill ${getWorkerPillClass(
+                                            taskState,
+                                            "coder"
+                                        )}`}
+                                    >
+                                        <span className="worker-pill-icon">◆</span>
+                                        <div className="worker-pill-info">
+                                            <strong>Coder</strong>
+                                            <span>
+                                                {getWorkerPillStatusText(
+                                                    taskState,
+                                                    "coder"
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        className={`worker-pill ${getWorkerPillClass(
+                                            taskState,
+                                            "content"
+                                        )}`}
+                                    >
+                                        <span className="worker-pill-icon">✎</span>
+                                        <div className="worker-pill-info">
+                                            <strong>Content</strong>
+                                            <span>
+                                                {getWorkerPillStatusText(
+                                                    taskState,
+                                                    "content"
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
                             <WorkflowLine
                                 status={getWorkflowLineStatus(
                                     taskState?.status,
-                                    "researcher"
+                                    "coder"
                                 )}
                             />
 
-
+                            {/* Step 3: Evaluator */}
                             <WorkflowStep
                                 number="03"
-                                icon="◆"
-                                title="Build"
-                                description="Create your solution"
+                                icon="✓"
+                                title="Evaluator"
+                                description="RAG verification & quality verdict"
                                 status={getWorkflowStepStatus(
                                     taskState?.status,
-                                    "coder"
+                                    "evaluator"
                                 )}
                             />
-
 
                             <WorkflowLine
                                 status={getWorkflowLineStatus(
                                     taskState?.status,
-                                    "coder"
+                                    "evaluator"
                                 )}
                             />
 
-
+                            {/* Step 4: Human Review */}
                             <WorkflowStep
                                 number="04"
-                                icon="✓"
-                                title="Review"
-                                description="Check the result"
-                                status={getWorkflowStepStatus(
-                                    taskState?.status,
-                                    "evaluator"
-                                )}
-                            />
-
-
-                            <WorkflowLine
-                                status={getWorkflowLineStatus(
-                                    taskState?.status,
-                                    "evaluator"
-                                )}
-                            />
-
-
-                            <WorkflowStep
-                                number="05"
                                 icon="◉"
-                                title="Your review"
+                                title="Human Review"
                                 description="Approve or request changes"
                                 status={getWorkflowStepStatus(
                                     taskState?.status,
@@ -2143,7 +2177,6 @@ function Dashboard() {
                                 )}
                             />
 
-
                             <WorkflowLine
                                 status={getWorkflowLineStatus(
                                     taskState?.status,
@@ -2151,17 +2184,52 @@ function Dashboard() {
                                 )}
                             />
 
+                            {/* Step 5: Revision OR Finalizer Branch */}
+                            <div className="workflow-decision-tier">
+                                <div
+                                    className={`decision-branch ${getDecisionBranchClass(
+                                        taskState,
+                                        "revision"
+                                    )}`}
+                                >
+                                    <div className="decision-branch-header">
+                                        <span className="decision-icon">↻</span>
+                                        <strong>Revision</strong>
+                                    </div>
+                                    <span className="decision-sub">
+                                        Loops back to Evaluator
+                                    </span>
+                                    {taskState?.revision_count > 0 && (
+                                        <span className="decision-badge rev">
+                                            Rev {taskState.revision_count}/2
+                                        </span>
+                                    )}
+                                </div>
 
-                            <WorkflowStep
-                                number="06"
-                                icon="→"
-                                title="Finalize"
-                                description="Prepare the final result"
-                                status={getWorkflowStepStatus(
-                                    taskState?.status,
-                                    "finalizer"
-                                )}
-                            />
+                                <div className="decision-or">
+                                    OR
+                                </div>
+
+                                <div
+                                    className={`decision-branch ${getDecisionBranchClass(
+                                        taskState,
+                                        "finalizer"
+                                    )}`}
+                                >
+                                    <div className="decision-branch-header">
+                                        <span className="decision-icon">→</span>
+                                        <strong>Finalizer</strong>
+                                    </div>
+                                    <span className="decision-sub">
+                                        Assembles final answer
+                                    </span>
+                                    {taskState?.status === "COMPLETED" && (
+                                        <span className="decision-badge done">
+                                            Done
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
 
                         </div>
 
@@ -4037,6 +4105,121 @@ function getWorkflowLineStatus(
 
 
 // =========================================================
+// WORKER PILL CLASS & STATUS
+// =========================================================
+
+function getWorkerPillClass(taskState, worker) {
+    if (!taskState) {
+        return "";
+    }
+
+    const status = taskState.status;
+    const stage = getWorkflowStage(status);
+
+    if (worker === "researcher") {
+        if (status === "RESEARCHING") {
+            return "worker-active";
+        }
+        if (taskState.research || stage > 2) {
+            return "worker-done";
+        }
+    }
+
+    if (worker === "coder") {
+        if (status === "CODING") {
+            return "worker-active";
+        }
+        if (taskState.code || stage > 3) {
+            return "worker-done";
+        }
+    }
+
+    if (worker === "content") {
+        if (status === "CREATING_CONTENT") {
+            return "worker-active";
+        }
+        if (taskState.content || stage > 3) {
+            return "worker-done";
+        }
+    }
+
+    return "";
+}
+
+
+function getWorkerPillStatusText(taskState, worker) {
+    if (!taskState) {
+        return "Ready";
+    }
+
+    const status = taskState.status;
+    const stage = getWorkflowStage(status);
+
+    if (worker === "researcher") {
+        if (status === "RESEARCHING") {
+            return "Active";
+        }
+        if (taskState.research || stage > 2) {
+            return "Done";
+        }
+    }
+
+    if (worker === "coder") {
+        if (status === "CODING") {
+            return "Active";
+        }
+        if (taskState.code || stage > 3) {
+            return "Done";
+        }
+    }
+
+    if (worker === "content") {
+        if (status === "CREATING_CONTENT") {
+            return "Active";
+        }
+        if (taskState.content || stage > 3) {
+            return "Done";
+        }
+    }
+
+    return "Ready";
+}
+
+
+// =========================================================
+// DECISION BRANCH CLASS
+// =========================================================
+
+function getDecisionBranchClass(taskState, branch) {
+    if (!taskState) {
+        return "";
+    }
+
+    const status = taskState.status;
+
+    if (branch === "revision") {
+        if (status === "REVISING") {
+            return "decision-active decision-revising";
+        }
+        if (taskState.revision_count > 0) {
+            return "decision-had-revision";
+        }
+    }
+
+    if (branch === "finalizer") {
+        if (status === "FINALIZING") {
+            return "decision-active";
+        }
+        if (status === "COMPLETED") {
+            return "decision-completed";
+        }
+    }
+
+    return "";
+}
+
+
+// =========================================================
 // WORKFLOW BADGE
 // =========================================================
 
@@ -4058,28 +4241,28 @@ function getWorkflowBadge(status) {
             "PLANNING",
 
         RESEARCHING:
-            "RESEARCH",
+            "RESEARCHING",
 
         CODING:
-            "BUILDING",
+            "CODING",
 
         CREATING_CONTENT:
             "CONTENT",
 
         REVISING:
-            "IMPROVING",
+            "REVISING",
 
         EVALUATING:
-            "REVIEW",
+            "EVALUATING",
 
         WAITING_FOR_HUMAN:
-            "YOUR REVIEW",
+            "WAITING FOR HUMAN",
 
         FINALIZING:
             "FINALIZING",
 
         COMPLETED:
-            "COMPLETE",
+            "COMPLETED",
 
         FAILED:
             "FAILED",
@@ -4095,6 +4278,7 @@ function getWorkflowBadge(status) {
 
     return (
         labels[status] ||
+        status ||
         "RUNNING"
     );
 
@@ -4445,19 +4629,19 @@ function formatStatus(
             "Researching",
 
         CODING:
-            "Building",
+            "Coding",
 
         CREATING_CONTENT:
             "Creating content",
 
         EVALUATING:
-            "Reviewing",
+            "Evaluating",
 
         WAITING_FOR_HUMAN:
             "Waiting for your review",
 
         REVISING:
-            "Improving",
+            "Revising",
 
         FINALIZING:
             "Finalizing",

@@ -1,60 +1,72 @@
 import json
 import secrets
 
-from dotenv import load_dotenv
-
 from fastapi import (
+    APIRouter,
     BackgroundTasks,
     Depends,
     FastAPI,
-    HTTPException,
-    status
+    HTTPException
 )
 
 from fastapi.middleware.cors import CORSMiddleware
-
 from fastapi.responses import FileResponse
 
 from langgraph.types import Command
 
-from sqlalchemy import select, update
+from pydantic import BaseModel
+
+from sqlalchemy import (
+    delete,
+    select,
+    update
+)
+
 from sqlalchemy.orm import Session
 
-from api.schemas import (
-    TaskRequest,
-    ApprovalRequest
-)
-
-from artifacts.manager import (
-    get_artifact_path,
-    list_artifacts,
-    delete_task_artifacts
-)
+from database.connection import SessionLocal, get_db
+from database.models import Task, TaskShare
 
 from auth.dependencies import get_current_user
 from auth.routes import router as auth_router
 
-from database.connection import get_db
-from database.models import (
-    User,
-    Task,
-    TaskShare
+from graph.workflow import app as workflow_app
+
+from artifacts.manager import (
+    delete_task_artifacts,
+    get_artifact_path,
+    list_artifacts
 )
 
-from graph.workflow import app as workflow_app
+from services.task_control import (
+    validate_status_transition
+)
 
 from services.task_runner import run_task
 
 
-load_dotenv()
-
-
 app = FastAPI(
     title="AgentSwarm API",
-    description="Multi-Agent Task Orchestration Engine",
     version="1.0.0"
 )
 
+
+# ============================================================
+# REQUEST SCHEMAS
+# ============================================================
+
+class CreateTaskRequest(BaseModel):
+    goal: str
+
+
+class ApprovalRequest(BaseModel):
+    approved: bool
+    feedback: str = ""
+
+
+# ============================================================
+# CORS
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,67 +76,60 @@ app.add_middleware(
     ],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
 
-app.include_router(
-    auth_router
-)
+router = APIRouter()
 
 
 # ============================================================
-# BACKGROUND TASK WRAPPER
+# BACKGROUND TASK
 # ============================================================
 
 def run_task_background(
     task_id: int
 ):
-
-    print(
-        f"[API BACKGROUND] Starting "
-        f"background task for task {task_id}",
-        flush=True
-    )
+    """
+    Execute an AgentSwarm task in the background.
+    """
 
     try:
 
-        run_task(
-            task_id
-        )
-
-        print(
-            f"[API BACKGROUND] run_task() "
-            f"returned for task {task_id}",
-            flush=True
-        )
+        run_task(task_id)
 
     except Exception as error:
 
         print(
-            f"[API BACKGROUND] ERROR while "
-            f"starting task {task_id}: {error}",
+            f"[API] Background task {task_id} "
+            f"failed: {error}",
             flush=True
         )
 
-        raise
-
 
 # ============================================================
-# DATABASE <-> LANGGRAPH SYNCHRONIZATION
+# DATABASE STATE SYNCHRONIZATION
 # ============================================================
 
 def sync_task_from_state(
     task: Task,
     state: dict,
-    db: Session
+    db
 ):
+    """
+    Synchronize the database with the latest
+    LangGraph checkpoint.
+
+    A STOPPED task cannot be overwritten.
+    """
+
+    new_status = state.get(
+        "status",
+        task.status
+    )
 
     values = {
-        "status": state.get(
-            "status",
-            task.status
-        ),
+        "status": new_status,
 
         "plan": state.get(
             "plan",
@@ -173,11 +178,12 @@ def sync_task_from_state(
 
     if completed_tasks is not None:
 
-        values["completed_tasks"] = (
-            json.dumps(
-                completed_tasks
-            )
+        values["completed_tasks"] = json.dumps(
+            completed_tasks
         )
+
+    # Do not overwrite a task that the user
+    # has already stopped.
 
     result = db.execute(
         update(Task)
@@ -192,16 +198,12 @@ def sync_task_from_state(
 
     db.refresh(task)
 
-    # If another request stopped the task
-    # before this synchronization committed,
-    # the conditional UPDATE above affected
-    # zero rows and STOPPED remains authoritative.
-    if result.rowcount == 0:
+    return result.rowcount == 1
 
-        db.refresh(task)
 
-        return
-
+# ============================================================
+# COMPLETED TASKS
+# ============================================================
 
 def get_completed_tasks(
     task: Task
@@ -213,58 +215,53 @@ def get_completed_tasks(
 
     try:
 
-        completed_tasks = json.loads(
+        value = json.loads(
             task.completed_tasks
         )
 
-    except json.JSONDecodeError:
+        if isinstance(value, list):
 
-        return []
+            return [
+                int(item)
+                for item in value
+            ]
 
-    if not isinstance(
-        completed_tasks,
-        list
+    except (
+        ValueError,
+        TypeError,
+        json.JSONDecodeError
     ):
 
-        return []
+        pass
 
-    return [
-        int(task_id)
-        for task_id in completed_tasks
-    ]
+    return []
 
+
+# ============================================================
+# TASK RESPONSE
+# ============================================================
 
 def task_response(
     task: Task
 ) -> dict:
 
     return {
+        "id": task.id,
         "task_id": task.id,
-
-        "status": task.status,
-
         "goal": task.goal,
-
+        "status": task.status,
         "plan": task.plan,
-
         "research": task.research,
-
         "content": task.content,
-
         "code": task.code,
-
         "evaluation": task.evaluation,
-
         "final_answer": task.final_answer,
-
-        "revision_count":
-            task.revision_count,
-
-        "current_task_id":
-            task.current_task_id,
-
-        "completed_tasks":
-            get_completed_tasks(task)
+        "revision_count": task.revision_count,
+        "current_task_id": task.current_task_id,
+        "completed_tasks": get_completed_tasks(
+            task
+        ),
+        "created_at": task.created_at
     }
 
 
@@ -272,8 +269,8 @@ def task_response(
 # HEALTH
 # ============================================================
 
-@app.get("/health")
-def health_check():
+@router.get("/health")
+def health():
 
     return {
         "status": "healthy",
@@ -285,22 +282,29 @@ def health_check():
 # CREATE TASK
 # ============================================================
 
-@app.post("/tasks")
+@router.post("/tasks")
 def create_task(
-    request: TaskRequest,
+    request: CreateTaskRequest,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
 ):
 
+    goal = request.goal.strip()
+
+    if not goal:
+
+        raise HTTPException(
+            status_code=422,
+            detail="Goal cannot be empty."
+        )
+
     task = Task(
         user_id=current_user.id,
-        goal=request.goal,
-        status="STARTING",
-        current_task_id=None,
-        completed_tasks="[]"
+        goal=goal,
+        status="STARTING"
     )
 
     db.add(task)
@@ -311,15 +315,8 @@ def create_task(
 
     task_id = task.id
 
-    print(
-        f"[API] Created task {task_id}",
-        flush=True
-    )
-
-    print(
-        f"[API] Scheduling background "
-        f"execution for task {task_id}",
-        flush=True
+    response = task_response(
+        task
     )
 
     background_tasks.add_task(
@@ -327,22 +324,16 @@ def create_task(
         task_id
     )
 
-    print(
-        f"[API] Background task scheduled "
-        f"for task {task_id}",
-        flush=True
-    )
-
-    return task_response(task)
+    return response
 
 
 # ============================================================
-# GET ALL TASKS
+# LIST TASKS
 # ============================================================
 
-@app.get("/tasks")
-def get_tasks(
-    current_user: User = Depends(
+@router.get("/tasks")
+def list_tasks(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
@@ -352,320 +343,228 @@ def get_tasks(
         select(Task)
         .where(
             Task.user_id ==
-                current_user.id
+            current_user.id
         )
         .order_by(
             Task.created_at.desc()
         )
     ).all()
 
-    return {
-        "tasks": [
-
-            {
-                "task_id":
-                    task.id,
-
-                "status":
-                    task.status,
-
-                "goal":
-                    task.goal,
-
-                "revision_count":
-                    task.revision_count,
-
-                "current_task_id":
-                    task.current_task_id,
-
-                "completed_tasks":
-                    get_completed_tasks(task),
-
-                "created_at":
-                    task.created_at
-            }
-
-            for task in tasks
-        ]
-    }
+    return [
+        task_response(task)
+        for task in tasks
+    ]
 
 
 # ============================================================
-# GET SINGLE TASK
+# GET TASK
 # ============================================================
 
-@app.get("/tasks/{task_id}")
+@router.get("/tasks/{task_id}")
 def get_task(
     task_id: int,
-    current_user: User = Depends(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
 ):
 
     task = db.scalar(
-        select(Task)
-        .where(
+        select(Task).where(
             Task.id == task_id,
             Task.user_id ==
-                current_user.id
+            current_user.id
         )
     )
 
     if task is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Task not found."
+            status_code=404,
+            detail="Task not found."
         )
 
-    if task.status == "STOPPED":
+    if task.status != "STOPPED":
 
-        return task_response(task)
-
-    config = {
-        "configurable": {
-            "thread_id":
-                str(task.id)
+        config = {
+            "configurable": {
+                "thread_id":
+                    str(task.id)
+            }
         }
-    }
 
-    try:
+        try:
 
-        state_snapshot = (
-            workflow_app.get_state(
-                config
+            snapshot = (
+                workflow_app.get_state(
+                    config
+                )
             )
-        )
 
-    except Exception:
+            if (
+                snapshot is not None
+                and snapshot.values
+            ):
 
-        state_snapshot = None
+                sync_task_from_state(
+                    task,
+                    snapshot.values,
+                    db
+                )
 
-    if (
-        state_snapshot is None
-        or not state_snapshot.values
-    ):
+        except Exception as error:
 
-        return task_response(task)
+            print(
+                f"[API] Could not synchronize "
+                f"task {task.id}: {error}",
+                flush=True
+            )
 
-    state = state_snapshot.values
-
-    sync_task_from_state(
-        task,
-        state,
-        db
+    return task_response(
+        task
     )
 
-    return task_response(task)
-
 
 # ============================================================
-# GET TASK ARTIFACTS
+# LIST ARTIFACTS
 # ============================================================
 
-@app.get(
+@router.get(
     "/tasks/{task_id}/artifacts"
 )
-def get_task_artifacts(
+def get_artifacts(
     task_id: int,
-    current_user: User = Depends(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
 ):
 
     task = db.scalar(
-        select(Task)
-        .where(
+        select(Task).where(
             Task.id == task_id,
             Task.user_id ==
-                current_user.id
+            current_user.id
         )
     )
 
     if task is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Task not found."
+            status_code=404,
+            detail="Task not found."
         )
 
-    return {
-        "task_id": task.id,
-
-        "artifacts":
-            list_artifacts(task.id)
-    }
+    return list_artifacts(
+        task_id
+    )
 
 
 # ============================================================
-# DOWNLOAD TASK ARTIFACT
+# DOWNLOAD ARTIFACT
 # ============================================================
 
-@app.get(
+@router.get(
     "/tasks/{task_id}/artifacts/{filename}"
 )
-def download_task_artifact(
+def download_artifact(
     task_id: int,
     filename: str,
-    current_user: User = Depends(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
 ):
 
     task = db.scalar(
-        select(Task)
-        .where(
+        select(Task).where(
             Task.id == task_id,
             Task.user_id ==
-                current_user.id
+            current_user.id
         )
     )
 
     if task is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Task not found."
+            status_code=404,
+            detail="Task not found."
         )
 
     try:
 
         artifact_path = get_artifact_path(
-            task.id,
+            task_id,
             filename
         )
 
     except (
-        TypeError,
         ValueError,
+        TypeError,
         RuntimeError
-    ) as exc:
+    ) as error:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_400_BAD_REQUEST,
-            detail=
-                "Invalid artifact filename."
-        ) from exc
+            status_code=400,
+            detail=str(error)
+        )
 
     if not artifact_path.is_file():
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Artifact not found."
+            status_code=404,
+            detail="Artifact not found."
         )
 
     return FileResponse(
         path=artifact_path,
-        filename=artifact_path.name,
-        media_type="application/octet-stream"
+        filename=artifact_path.name
     )
 
 
 # ============================================================
-# CREATE PUBLIC SHARE LINK
+# CREATE SHARE
 # ============================================================
 
-@app.post(
+@router.post(
     "/tasks/{task_id}/share"
 )
-def create_share_link(
+def create_share(
     task_id: int,
-    current_user: User = Depends(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
 ):
 
     task = db.scalar(
-        select(Task)
-        .where(
+        select(Task).where(
             Task.id == task_id,
             Task.user_id ==
-                current_user.id
+            current_user.id
         )
     )
 
     if task is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Task not found."
+            status_code=404,
+            detail="Task not found."
         )
 
     if task.status != "COMPLETED":
 
         raise HTTPException(
-            status_code=
-                status.HTTP_409_CONFLICT,
+            status_code=400,
             detail=(
                 "Only completed tasks "
                 "can be shared."
             )
         )
 
-    existing_share = db.scalar(
-        select(TaskShare)
-        .where(
-            TaskShare.task_id == task.id
-        )
+    token = secrets.token_urlsafe(
+        32
     )
-
-    if existing_share is not None:
-
-        return {
-            "task_id": task.id,
-
-            "share_token":
-                existing_share.token,
-
-            "share_url":
-                f"/share/{existing_share.token}"
-        }
-
-    token = None
-
-    for _ in range(5):
-
-        candidate = secrets.token_urlsafe(
-            32
-        )
-
-        existing_token = db.scalar(
-            select(TaskShare)
-            .where(
-                TaskShare.token ==
-                    candidate
-            )
-        )
-
-        if existing_token is None:
-
-            token = candidate
-
-            break
-
-    if token is None:
-
-        raise HTTPException(
-            status_code=
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=
-                "Could not generate a share link."
-        )
 
     share = TaskShare(
         task_id=task.id,
@@ -676,24 +575,16 @@ def create_share_link(
 
     db.commit()
 
-    db.refresh(share)
-
     return {
-        "task_id": task.id,
-
-        "share_token":
-            share.token,
-
-        "share_url":
-            f"/share/{share.token}"
+        "token": token
     }
 
 
 # ============================================================
-# GET PUBLIC SHARED TASK
+# PUBLIC SHARE
 # ============================================================
 
-@app.get(
+@router.get(
     "/share/{token}"
 )
 def get_shared_task(
@@ -702,8 +593,7 @@ def get_shared_task(
 ):
 
     share = db.scalar(
-        select(TaskShare)
-        .where(
+        select(TaskShare).where(
             TaskShare.token == token
         )
     )
@@ -711,15 +601,12 @@ def get_shared_task(
     if share is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Shared task not found."
+            status_code=404,
+            detail="Share not found."
         )
 
     task = db.scalar(
-        select(Task)
-        .where(
+        select(Task).where(
             Task.id == share.task_id
         )
     )
@@ -727,29 +614,24 @@ def get_shared_task(
     if task is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Shared task not found."
+            status_code=404,
+            detail="Task not found."
         )
 
-    # Public links expose only the
-    # information necessary to view
-    # the completed result.
-    #
-    # Internal research, code, evaluator
-    # output, planning details, and workflow
-    # state remain private.
+    if task.status != "COMPLETED":
+
+        raise HTTPException(
+            status_code=403,
+            detail="Shared task is not completed."
+        )
 
     return {
         "task_id": task.id,
-
         "status": task.status,
-
         "goal": task.goal,
-
-        "final_answer": task.final_answer,
-
+        "evaluation": task.evaluation,
+        "final_answer":
+            task.final_answer,
         "revision_count":
             task.revision_count
     }
@@ -759,107 +641,133 @@ def get_shared_task(
 # STOP TASK
 # ============================================================
 
-@app.post("/tasks/{task_id}/stop")
+@router.post(
+    "/tasks/{task_id}/stop"
+)
 def stop_task(
     task_id: int,
-    current_user: User = Depends(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
 ):
 
     task = db.scalar(
-        select(Task)
-        .where(
+        select(Task).where(
             Task.id == task_id,
             Task.user_id ==
-                current_user.id
+            current_user.id
         )
     )
 
     if task is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Task not found."
+            status_code=404,
+            detail="Task not found."
         )
 
-    terminal_statuses = {
+    if task.status in (
         "COMPLETED",
         "FAILED",
         "STOPPED"
-    }
-
-    if task.status in terminal_statuses:
+    ):
 
         raise HTTPException(
-            status_code=
-                status.HTTP_409_CONFLICT,
+            status_code=400,
             detail=(
-                f"Task cannot be stopped because "
-                f"it is already {task.status}."
+                f"Task is already "
+                f"{task.status}."
             )
         )
 
-    task.status = "STOPPED"
+    current_status = task.status
 
-    task.current_task_id = None
+    validate_status_transition(
+        current_status,
+        "STOPPED"
+    )
+
+    result = db.execute(
+        update(Task)
+        .where(
+            Task.id == task.id,
+            Task.user_id ==
+            current_user.id,
+            Task.status ==
+            current_status,
+            Task.status != "STOPPED"
+        )
+        .values(
+            status="STOPPED",
+            current_task_id=None
+        )
+    )
 
     db.commit()
 
+    if result.rowcount != 1:
+
+        db.refresh(task)
+
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Task changed while "
+                "stopping it. Please "
+                "refresh and try again."
+            )
+        )
+
     db.refresh(task)
 
-    return task_response(task)
+    return task_response(
+        task
+    )
 
 
 # ============================================================
 # DELETE TASK
 # ============================================================
 
-@app.delete("/tasks/{task_id}")
+@router.delete(
+    "/tasks/{task_id}"
+)
 def delete_task(
     task_id: int,
-    current_user: User = Depends(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
 ):
 
     task = db.scalar(
-        select(Task)
-        .where(
+        select(Task).where(
             Task.id == task_id,
             Task.user_id ==
-                current_user.id
+            current_user.id
         )
     )
 
     if task is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Task not found."
+            status_code=404,
+            detail="Task not found."
         )
 
-    deletable_statuses = {
+    if task.status not in (
         "COMPLETED",
         "FAILED",
         "STOPPED"
-    }
-
-    if task.status not in deletable_statuses:
+    ):
 
         raise HTTPException(
-            status_code=
-                status.HTTP_409_CONFLICT,
+            status_code=400,
             detail=(
-                "Only completed, failed, or stopped "
-                "tasks can be deleted. Stop a running "
-                "task before deleting it."
+                "Only completed, failed, "
+                "or stopped tasks can "
+                "be deleted."
             )
         )
 
@@ -867,75 +775,73 @@ def delete_task(
         task.id
     )
 
-    db.delete(task)
+    db.execute(
+        delete(Task).where(
+            Task.id == task.id,
+            Task.user_id == current_user.id
+        )
+    )
 
     db.commit()
 
     return {
-        "message":
-            "Task deleted successfully.",
-
-        "task_id":
-            task_id
+        "message": "Task deleted."
     }
 
 
 # ============================================================
-# HUMAN APPROVAL
+# HUMAN APPROVAL / REJECTION
 # ============================================================
 
-@app.post(
+@router.post(
     "/tasks/{task_id}/approval"
 )
-def submit_approval(
+def approve_task(
     task_id: int,
     request: ApprovalRequest,
-    current_user: User = Depends(
+    current_user=Depends(
         get_current_user
     ),
     db: Session = Depends(get_db)
 ):
 
+    approved = request.approved
+    feedback = request.feedback.strip()
+
     task = db.scalar(
-        select(Task)
-        .where(
+        select(Task).where(
             Task.id == task_id,
-            Task.user_id ==
-                current_user.id
+            Task.user_id == current_user.id
         )
     )
 
     if task is None:
 
         raise HTTPException(
-            status_code=
-                status.HTTP_404_NOT_FOUND,
-            detail=
-                "Task not found."
-        )
-
-    if (
-        request.approved is False
-        and not request.feedback.strip()
-    ):
-
-        raise HTTPException(
-            status_code=
-                status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Feedback is required when "
-                "rejecting an implementation."
-            )
+            status_code=404,
+            detail="Task not found."
         )
 
     if task.status != "WAITING_FOR_HUMAN":
 
         raise HTTPException(
-            status_code=
-                status.HTTP_409_CONFLICT,
+            status_code=400,
             detail=(
-                "This task is not currently "
-                "waiting for human approval."
+                "Task is not waiting "
+                "for human review."
+            )
+        )
+
+    if (
+        not approved
+        and not feedback
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Feedback is required when "
+                "rejecting an implementation."
             )
         )
 
@@ -947,38 +853,57 @@ def submit_approval(
     }
 
     resume_value = {
-        "approved":
-            request.approved
+        "approved": approved
     }
 
-    if not request.approved:
+    if not approved:
 
-        resume_value["feedback"] = (
-            request.feedback.strip()
-        )
+        resume_value["feedback"] = feedback
 
     try:
 
-        result = workflow_app.invoke(
-            Command(
-                resume=resume_value
-            ),
-            config
+        result_state = (
+            workflow_app.invoke(
+                Command(
+                    resume=resume_value
+                ),
+                config
+            )
         )
 
-    except Exception as exc:
+    except Exception as error:
+
+        db.rollback()
 
         raise HTTPException(
-            status_code=
-                status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=
-                "Task could not be resumed."
-        ) from exc
+            status_code=500,
+            detail="Could not resume task."
+        ) from error
 
     sync_task_from_state(
         task,
-        result,
+        result_state,
         db
     )
 
-    return task_response(task)
+    return task_response(
+        task
+    )
+
+
+# ============================================================
+# REGISTER AUTH ROUTES
+# ============================================================
+
+app.include_router(
+    auth_router
+)
+
+
+# ============================================================
+# REGISTER API ROUTES
+# ============================================================
+
+app.include_router(
+    router
+)

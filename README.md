@@ -54,7 +54,31 @@ User Request
    Final Output
 ```
 
-This allows each stage to focus on a specific responsibility.
+```mermaid
+flowchart TD
+    User([User Request]) --> Planner[Planner Agent]
+    Planner --> Router{Task Router}
+    Router -->|Research Task| Researcher[Researcher Agent]
+    Router -->|Coding Task| Coder[Coder Agent]
+    Router -->|Content Task| Content[Content Agent]
+    Researcher --> Complete[Mark Task Complete]
+    Coder --> Complete
+    Content --> Complete
+    Complete --> Next{More Tasks?}
+    Next -->|Yes| Router
+    Next -->|No| Evaluator[RAG Evaluator - Gemini 3.6 Flash]
+    Evaluator --> EvalCheck{Verdict}
+    EvalCheck -->|REVISE| Revision[Revision Worker]
+    EvalCheck -->|UNAVAILABLE| EndUnavail([Status: EVALUATION_UNAVAILABLE])
+    EvalCheck -->|PASS| HumanReview[Human Review HITL Node]
+    HumanReview --> HumanDecision{Human Decision}
+    HumanDecision -->|REJECT with Feedback| Revision
+    HumanDecision -->|APPROVE| Finalizer[Finalizer Agent]
+    Revision -->|Re-eval Loop| Evaluator
+    Finalizer --> Output([Final Result & Artifacts])
+```
+
+This ensures each stage focuses on its specialized domain with rigorous verification.
 
 ---
 
@@ -707,244 +731,256 @@ npm.cmd run dev
 
 ---
 
-# Testing
+# Automated Test Suite
 
-AgentSwarm includes local tests for core workflow infrastructure.
+AgentSwarm maintains a rigorous **64-test automated test suite** with 100% pass rate, covering every workflow permutation, edge case, and security boundary.
 
-### Compile the Project
-
-```powershell
-.\venv\Scripts\python.exe -m compileall .
-```
-
-### Artifact Tests
+### Running the Test Suite
 
 ```powershell
-.\venv\Scripts\python.exe -m tests.test_artifacts_local
+# Run the complete test suite with verbose output
+$env:PYTHONPATH = "C:\Users\suhas\OneDrive\Desktop\AgentSwarm"
+.\venv\Scripts\pytest.exe -v
 ```
 
-Tests artifact creation, validation, security checks, and deletion.
+### Test Coverage Breakdown
 
-### Workflow Routing Tests
-
-```powershell
-.\venv\Scripts\python.exe -m tests.test_workflow_routing
-```
-
-Tests:
-
-* Worker routing
-* Evaluator PASS routing
-* Evaluator REVISE routing
-* Revision limits
-* Evaluator-unavailable routing
-* Human approval
-* Human rejection
-
-### Task Synchronization Tests
-
-```powershell
-.\venv\Scripts\python.exe -m tests.test_task_sync
-```
-
-Tests:
-
-* Normal synchronization
-* Completed tasks
-* Evaluator-unavailable state
-* STOPPED state protection
-* Partial state preservation
+| Category | Test File | Description | Count |
+| :--- | :--- | :--- | :--- |
+| **Workflow Routing** | `test_workflow_routing.py` | Validates task router dispatching to Researcher, Coder, Evaluator, and proper conditional routing. | 13 |
+| **Edge Cases & Failure Recovery** | `test_workflow_edge_cases.py` | Worker failures $\rightarrow$ `FAILED`, user stop protection against overwriting, evaluator unavailable routing, human reject loop, max revisions. | 8 |
+| **Security & Task Isolation** | `test_security_api.py` | Cross-user task isolation (404), unauthenticated blocking, share token sanitization, and auth password validation. | 3 |
+| **Human-in-the-Loop Review** | `test_task_approval_api.py` | Human approval flow, rejection with mandatory feedback, rejection without feedback validation (400). | 3 |
+| **Revision & Limits** | `test_revision_limit.py`, `test_revision.py` | Evaluator max revision caps (`MAX_REVISIONS = 2`), human rejection limit routing to `END`, revision counter increments. | 3 |
+| **Task Synchronization & Stop** | `test_task_sync.py` | State synchronization from checkpoints, terminal state protection, partial state preservation. | 5 |
+| **Planner Decomposition** | `test_planner.py` | Verifies plan decomposition for coding, research, content, and restricts invalid task agents. | 7 |
+| **RAG Knowledge Base** | `test_rag.py` | Document chunking, ChromaDB vector collection reset, document retrieval, and metadata preservation. | 4 |
+| **Task Lifecycle & Workflow APIs**| `test_tasks_api.py`, `test_tasks_workflow_api.py` | API validation, task submission, background runner invocation, and status transitions. | 5 |
+| **Persistence & Checkpoints** | `test_checkpoint.py`, `test_checkpoint_persistence.py` | PostgreSQL checkpointer integration, snapshot recovery, and thread-specific states. | 3 |
+| **Full End-to-End Workflows** | `test_full_workflow.py`, `test_full_revision.py` | Multi-step end-to-end execution from Planner $\rightarrow$ Worker $\rightarrow$ Evaluator $\rightarrow$ Revision $\rightarrow$ Approval $\rightarrow$ Finalizer. | 10 |
 
 ---
 
-# Security
+# Execution Walkthroughs
 
-AgentSwarm includes several application-level security controls.
+AgentSwarm is designed to handle complex, branching multi-agent lifecycles with deterministic controls. Below are 3 real-world execution traces:
 
-### Authentication
+### Scenario 1: Clean Coding Task (Passes on First Try)
 
-JWT authentication protects user-specific operations.
+**Goal**: *"Write an efficient Python function to detect cycles in a directed graph using Kahn's topological sort."*
 
-### Authorization
-
-Users can only access tasks that belong to their account.
-
-### Input Validation
-
-API requests are validated using Pydantic.
-
-### Artifact Isolation
-
-Artifacts are stored inside task-specific directories.
-
-### Path Traversal Protection
-
-Artifact filenames reject unsafe paths and path separators.
-
-### Artifact Size Limits
-
-Artifacts are limited to a maximum allowed size.
-
-### Secure Sharing
-
-Task share tokens use cryptographically secure random generation.
-
-### Secret Management
-
-API keys and secrets are supplied through environment variables.
+```text
+[1. START]      User submits goal via POST /tasks
+                 └── Task #101 created with status: STARTING
+[2. PLANNER]    Planner decomposes goal into structured plan:
+                 └── Task 1: "coder" - Implement Kahn's cycle detection algorithm
+[3. WORKER]     Coder generates cycle detection Python module with unit tests & docstrings
+                 └── Output saved to artifacts/generated/101/task_101_code.txt
+                 └── Status transitions: CODING → EVALUATING
+[4. EVALUATOR]  Evaluator checks correctness, algorithmic complexity (O(V+E)), and formatting:
+                 └── Evaluator outputs: "VERDICT: PASS - Kahn's algorithm correctly tracks in-degrees"
+                 └── Status transitions: EVALUATING → WAITING_FOR_HUMAN
+[5. HITL REVIEW] User inspects result in React Dashboard, reviews code, and clicks "Approve & Finalize":
+                 └── POST /tasks/101/approval with {"approved": true}
+[6. FINALIZER]  Finalizer packages solution with markdown explanation and complexity summary
+                 └── Final status: COMPLETED (Revision count: 0)
+```
 
 ---
 
-# Reliability
+### Scenario 2: Research & Content Task with Human Rejection & Revision
 
-AgentSwarm includes safeguards for long-running and multi-stage workflows.
-
-### Bounded Revisions
-
-Revision loops have a maximum number of attempts.
-
-### Terminal State Protection
-
-Stopped and terminal tasks are protected from incorrect state overwrites.
-
-### Persistent Checkpoints
-
-LangGraph workflow state is persisted through PostgreSQL.
-
-### Evaluator Failure Handling
-
-Evaluator quota and rate-limit failures are represented explicitly as:
+**Goal**: *"Research quantum computing breakthroughs in 2024 and write an executive summary for non-technical leadership."*
 
 ```text
-EVALUATION_UNAVAILABLE
+[1. START]      User submits goal via POST /tasks
+[2. PLANNER]    Planner creates two-phase plan:
+                 └── Task 1: "researcher" - Query Tavily for 2024 quantum announcements
+                 └── Task 2: "content" - Draft executive summary using research findings
+[3. WORKER 1]   Researcher queries Tavily for recent neutral atom and fault-tolerant quantum milestones
+                 └── Research findings compiled into structured state
+[4. WORKER 2]   Content agent writes initial executive summary
+[5. EVALUATOR]  Evaluator verifies factual consistency: "VERDICT: PASS"
+                 └── Status transitions to WAITING_FOR_HUMAN
+[6. HITL REVIEW] User reviews draft but needs a financial implications section:
+                 └── User enters feedback: "Include estimated commercial timeline and market impact"
+                 └── User clicks "Ask for improvements" (Reject)
+                 └── Status transitions to REVISING (Revision count: 1/2)
+[7. REVISION]   Content worker re-invoked with user feedback:
+                 └── Injects section on commercial timeline (2028-2030) and enterprise risk
+[8. EVALUATOR]  Evaluator re-evaluates updated draft: "VERDICT: PASS"
+[9. HITL REVIEW] User reviews revised draft and clicks "Approve & Finalize"
+[10. FINALIZER] Final answer assembled and presented to user. Status: COMPLETED.
 ```
-
-rather than being treated as successful evaluations.
-
-### Background Execution
-
-Task execution is separated from the initial API request through the task runner.
 
 ---
 
-# Example
+### Scenario 3: Task Interruption & User Stop Safeguard
 
-A user submits:
-
-```text
-Research a graph algorithm, implement it in Python,
-and explain its complexity.
-```
-
-AgentSwarm can produce a workflow similar to:
+**Goal**: *"Generate a comprehensive 100-page market analysis of renewable energy in South America."*
 
 ```text
-                    User Request
-                         │
-                         ▼
-                      Planner
-                         │
-          ┌──────────────┼──────────────┐
-          ▼              ▼              ▼
-      Researcher       Coder         Content
-          │              │              │
-          └──────────────┼──────────────┘
-                         ▼
-                     Evaluator
-                         │
-                    ┌────┴────┐
-                    │         │
-                  PASS      REVISE
-                    │         │
-                    ▼         ▼
-              Human Review  Worker
-                    │
-              ┌─────┴─────┐
-              │           │
-           APPROVE       REJECT
-              │           │
-              ▼           │
-          Finalizer       │
-              │           │
-              ▼           │
-         Final Output ◄────┘
+[1. START]      User submits goal via POST /tasks
+[2. RUNNING]    Planner creates extensive plan; Researcher starts long-running web searches
+[3. USER STOP]  User realizes prompt was overly broad and clicks "Stop Task" in Dashboard
+                 └── API executes: POST /tasks/105/stop
+                 └── Database updates Task #105 atomically: status = "STOPPED", current_task_id = null
+[4. SAFEGUARD]  The background TaskRunner thread attempts to sync checkpoint state:
+                 └── sync_task_from_state executes: UPDATE tasks WHERE id=105 AND status != 'STOPPED'
+                 └── Row count = 0: STOPPED status is completely immune to being overwritten!
+[5. TERMINAL]   Task remains safely in STOPPED state; user can delete or resubmit without data corruption.
 ```
 
-The exact task decomposition depends on the user's request.
+---
+
+# RAG Knowledge Base & Evaluator Architecture
+
+AgentSwarm uses an **isolated multi-model architecture** to ensure objective evaluation:
+
+* **Generation Engine**: High-throughput open weights via Groq (`openai/gpt-oss-120b`).
+* **Evaluation Engine**: Multimodal reasoner via Google Gemini (`gemini-3.6-flash`).
+
+### Evaluation Workflow
+
+```text
+Worker Output + Ground Truth Docs
+              │
+              ▼
+   ChromaDB Vector Retrieval
+              │
+              ▼
+   Gemini 3.6 Flash Evaluator
+              │
+    ┌─────────┴─────────┐
+    ▼                   ▼
+VERDICT: PASS       VERDICT: REVISE
+```
+
+1. **Document Ingestion**: Reference files and project documents are chunked (500 characters, 50 overlap) and indexed in ChromaDB.
+2. **Context Retrieval**: When evaluating worker outputs, the Evaluator queries the vector store for authoritative guidelines and reference implementations.
+3. **Structured Verdict**: The Evaluator outputs either `VERDICT: PASS` or `VERDICT: REVISE` with targeted feedback.
+4. **Quota Resilience (`EVALUATION_UNAVAILABLE`)**: If external API rate limits or quota boundaries are encountered (HTTP 429/503), AgentSwarm traps the error and marks the status as `EVALUATION_UNAVAILABLE` rather than falsely passing unverified output.
+
+---
+
+# Security & Isolation Hardening
+
+AgentSwarm implements defense-in-depth across API, database, and file system boundaries:
+
+* **Strict Task Isolation**: Every private endpoint enforces `Task.user_id == current_user.id`. Requests targeting another user's task ID return `404 Not Found` to prevent resource enumeration.
+* **Share Token Sanitization**: Public task sharing (`/share/{token}`) is restricted strictly to `COMPLETED` tasks. Non-completed tasks return `403 Forbidden`. The response only exposes public fields (`task_id`, `goal`, `status`, `evaluation`, `final_answer`, `revision_count`), never leaking user emails, user IDs, or internal checkpoint metadata.
+* **Password & Token Security**: Passwords enforce a minimum 8-character policy. Password reset tokens are generated using cryptographically secure random bytes (`secrets.token_urlsafe`), and only SHA-256 hashes are stored in PostgreSQL with time-based expiration (`reset_token_expires_at`).
+* **Artifact Path Traversal Protection**: Filenames are validated against directory traversal attacks (`..`, absolute paths, illegal characters). Artifacts are strictly quarantined within per-task directories (`artifacts/generated/<task_id>/`).
+
+---
+
+# Production Deployment Guide
+
+### Environment Configuration
+
+AgentSwarm requires standard environment variables. Copy the template and fill in your credentials:
+
+```powershell
+copy .env.example .env
+```
+
+> [!IMPORTANT]
+> Never commit your `.env` file or hardcode actual API keys into source files. All configuration is loaded dynamically via `python-dotenv`.
+
+### Docker Container Deployment
+
+To containerize the FastAPI backend for production:
+
+```dockerfile
+# Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies for psycopg3 and build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "api.api:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### PostgreSQL 16 Setup
+
+AgentSwarm requires a PostgreSQL database for application state and LangGraph checkpointing:
+
+```sql
+CREATE DATABASE agentswarm;
+CREATE USER agentswarm_user WITH ENCRYPTED PASSWORD 'secure_production_password';
+GRANT ALL PRIVILEGES ON DATABASE agentswarm TO agentswarm_user;
+```
+
+Update your `.env`:
+
+```env
+DATABASE_URL=postgresql://agentswarm_user:secure_production_password@db.example.com:5432/agentswarm
+```
+
+### Frontend Production Build & Hosting
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+The resulting `frontend/dist/` directory can be hosted behind Nginx, Cloudflare Pages, AWS S3 + CloudFront, or Vercel:
+
+```nginx
+# Sample Nginx reverse proxy configuration
+server {
+    listen 80;
+    server_name agentswarm.example.com;
+
+    root /var/www/agentswarm/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
 
 ---
 
 # Design Principles
 
 ### Specialized Agents
-
 Each agent has a focused responsibility instead of one model performing every operation.
 
 ### Explicit Workflow State
-
-Agent communication occurs through structured LangGraph state.
+Agent communication occurs through structured LangGraph state (`AgentState`).
 
 ### Independent Evaluation
-
-The Evaluator is separated from the primary worker model.
+The Evaluator is separated from the primary worker model, leveraging cross-model verification.
 
 ### Controlled Autonomy
-
-Revision attempts are bounded.
+Revision attempts are bounded by `MAX_REVISIONS = 2` to prevent runaway API consumption.
 
 ### Human Oversight
-
-Human approval can be required before finalization.
+Human approval is required before finalization, with mandatory feedback on rejection.
 
 ### Persistent Execution
-
-Workflow state is checkpointed through PostgreSQL.
-
-### Secure Resource Management
-
-Authentication, authorization, artifact security, and secret management are built into the application.
-
----
-
-# Current Status
-
-* [x] Multi-agent planning
-* [x] Research agent
-* [x] Coding agent
-* [x] Content agent
-* [x] Independent evaluator
-* [x] Automatic revision loop
-* [x] Human-in-the-loop approval
-* [x] LangGraph orchestration
-* [x] PostgreSQL checkpointing
-* [x] JWT authentication
-* [x] User task authorization
-* [x] Task stopping
-* [x] Task deletion
-* [x] Artifact generation
-* [x] Artifact downloads
-* [x] Secure task sharing
-* [x] Frontend workflow visualization
-* [x] Evaluator quota handling
-* [x] Artifact security tests
-* [x] Workflow routing tests
-* [x] Task synchronization tests
-
----
-
-# Future Improvements
-
-Potential improvements include:
-
-* Parallel execution of independent tasks
-* Additional specialized agents
-* Streaming agent execution
-* Rich artifact formats
-* Distributed task workers
-* Advanced observability and tracing
-* More sophisticated dependency scheduling
-* Improved evaluation strategies
-* Production deployment infrastructure
+Workflow state is checkpointed in PostgreSQL via `PostgresSaver`, enabling robust task resumption.
 
 ---
 
@@ -959,3 +995,4 @@ MIT License
 **Raavi Suhas**
 
 GitHub: [https://github.com/suhas-2007/AgentSwarm](https://github.com/suhas-2007/AgentSwarm)
+

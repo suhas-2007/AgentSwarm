@@ -10,19 +10,7 @@ from database.models import User
 from auth.dependencies import get_current_user
 
 
-engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool
-)
-
-TestingSessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
-    autocommit=False
-)
-
-Base.metadata.create_all(bind=engine)
+from tests.conftest import TestingSessionLocal
 
 
 def override_get_db():
@@ -145,9 +133,9 @@ def test_create_task_rejects_missing_goal():
     assert response.status_code == 422
 
 
-def test_approval_requires_feedback_when_rejected():
+def test_approval_requires_feedback_when_rejected(db_session):
 
-    db = TestingSessionLocal()
+    db = db_session
 
     user = db.query(User).filter(
         User.email == "test@example.com"
@@ -176,8 +164,6 @@ def test_approval_requires_feedback_when_rejected():
     db.refresh(task)
 
     task_id = task.id
-
-    db.close()
 
     response = client.post(
         f"/tasks/{task_id}/approval",
