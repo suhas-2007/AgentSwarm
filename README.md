@@ -2,6 +2,15 @@
 
 ## Multi-Agent Task Orchestration Engine
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-AgentSwarm%20Web-00E599?style=for-the-badge&logo=render&logoColor=white)](https://agentswarm-web.onrender.com)
+[![API Status](https://img.shields.io/badge/Live%20API-FastAPI%20Swagger-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://agentswarm-api.onrender.com/docs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+> 🌐 **Live Web Application**: [https://agentswarm-web.onrender.com](https://agentswarm-web.onrender.com)  
+> ⚡ **Live Backend API**: [https://agentswarm-api.onrender.com](https://agentswarm-api.onrender.com)  
+> 📚 **Interactive Swagger API Docs**: [https://agentswarm-api.onrender.com/docs](https://agentswarm-api.onrender.com/docs)  
+> 📖 **Interactive ReDoc**: [https://agentswarm-api.onrender.com/redoc](https://agentswarm-api.onrender.com/redoc)  
+
 AgentSwarm is a **stateful multi-agent AI platform** that decomposes user requests into smaller tasks and coordinates specialized AI agents to complete them.
 
 The system uses **LangGraph** to control the workflow, **FastAPI** for the backend API, **PostgreSQL** for persistence and checkpointing, and **React** for the frontend.
@@ -964,6 +973,24 @@ server {
     }
 }
 ```
+
+---
+
+# Live Cloud Deployment
+
+AgentSwarm is deployed and live on **Render** using an automated Infrastructure-as-Code Blueprint ([`render.yaml`](./render.yaml)):
+
+| Component | Status | Production URL |
+| :--- | :---: | :--- |
+| **Frontend Web App** | [![Status](https://img.shields.io/badge/Live-00E599?style=flat-square&logo=render&logoColor=white)](https://agentswarm-web.onrender.com) | [https://agentswarm-web.onrender.com](https://agentswarm-web.onrender.com) |
+| **FastAPI Backend API** | [![Status](https://img.shields.io/badge/Live-009688?style=flat-square&logo=fastapi&logoColor=white)](https://agentswarm-api.onrender.com) | [https://agentswarm-api.onrender.com](https://agentswarm-api.onrender.com) |
+| **Interactive Swagger Docs** | [![Status](https://img.shields.io/badge/Docs-Swagger-blue?style=flat-square)](https://agentswarm-api.onrender.com/docs) | [https://agentswarm-api.onrender.com/docs](https://agentswarm-api.onrender.com/docs) |
+| **PostgreSQL Database** | [![Status](https://img.shields.io/badge/Managed-PostgreSQL%2018-blue?style=flat-square&logo=postgresql&logoColor=white)](https://render.com) | Managed Render Cloud DB + LangGraph Checkpointer |
+
+### Key Production Capabilities:
+* **Google Identity Services (OAuth 2.0)**: Secure passwordless sign-in with Google.
+* **Bring-Your-Own-Key (BYOK) Credit Control**: Users manage their own Gemini, Groq, and Tavily API keys directly from the dashboard modal to protect host quota.
+* **PostgreSQL Stateful Checkpointing**: Distributed workflow state preservation across worker instances.
 
 ---
 
