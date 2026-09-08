@@ -15,6 +15,8 @@ if not DATABASE_URL:
         "DATABASE_URL is not configured in the .env file."
     )
 
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 engine = create_engine(
     DATABASE_URL,
