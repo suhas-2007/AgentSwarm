@@ -38,6 +38,8 @@ services:
         sync: false
       - key: TAVILY_API_KEY
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       - key: FRONTEND_URL
         fromService:
           type: web
@@ -50,7 +52,6 @@ services:
   - type: web
     name: agentswarm-web
     runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -64,3 +65,5 @@ services:
           type: web
           name: agentswarm-api
           envVarKey: RENDER_EXTERNAL_URL
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
