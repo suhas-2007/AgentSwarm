@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { API_URL } from "../config";
+import GoogleLoginButton from "../components/GoogleLoginButton";
 
 function Signup() {
     const navigate = useNavigate();
@@ -56,6 +57,20 @@ function Signup() {
                 "user_email",
                 data.email
             );
+
+            if (data.name) {
+                localStorage.setItem(
+                    "user_name",
+                    data.name
+                );
+            }
+
+            if (data.avatar_url) {
+                localStorage.setItem(
+                    "user_avatar",
+                    data.avatar_url
+                );
+            }
 
             navigate("/dashboard");
 
@@ -154,8 +169,10 @@ function Signup() {
                     </form>
 
                     <div className="auth-divider">
-                        <span>or</span>
+                        <span>or continue with</span>
                     </div>
+
+                    <GoogleLoginButton onError={(msg) => setError(msg)} />
 
                     <p className="auth-switch">
                         Already have an account?{" "}

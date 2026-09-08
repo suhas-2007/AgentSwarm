@@ -7,13 +7,15 @@ from langchain_google_genai import (
 from rag.search import retrieve_documents
 
 
-def get_llm():
+def get_llm(api_key: str | None = None):
+
+    key = api_key or os.getenv(
+        "GEMINI_API_KEY"
+    )
 
     return ChatGoogleGenerativeAI(
         model="gemini-3.6-flash",
-        google_api_key=os.getenv(
-            "GEMINI_API_KEY"
-        ),
+        google_api_key=key,
         temperature=0
     )
 
@@ -73,7 +75,8 @@ def evaluator_agent(
     task_description: str,
     research: str,
     code: str,
-    content: str
+    content: str,
+    api_key: str | None = None
 ) -> str:
 
     query = f"""
@@ -296,7 +299,7 @@ If no relevant evidence was retrieved, write "None".
 Do not rewrite the complete output.
 """
 
-    llm = get_llm()
+    llm = get_llm(api_key=api_key)
 
     try:
 

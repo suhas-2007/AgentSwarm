@@ -19,20 +19,25 @@ ALLOWED_TASK_TYPES = {
 }
 
 
-def get_llm():
+def get_llm(api_key: str | None = None):
+
+    key = api_key or os.getenv(
+        "GROQ_API_KEY"
+    )
 
     return ChatGroq(
         model="openai/gpt-oss-120b",
-        api_key=os.getenv(
-            "GROQ_API_KEY"
-        ),
+        api_key=key,
         temperature=0
     )
 
 
-def planner_agent(goal: str) -> dict:
+def planner_agent(
+    goal: str,
+    api_key: str | None = None
+) -> dict:
 
-    llm = get_llm()
+    llm = get_llm(api_key=api_key)
 
     prompt = f"""
 You are the Planner Agent in AgentSwarm.

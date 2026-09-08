@@ -3,13 +3,15 @@ import os
 from langchain_groq import ChatGroq
 
 
-def get_llm():
+def get_llm(api_key: str | None = None):
+
+    key = api_key or os.getenv(
+        "GROQ_API_KEY"
+    )
 
     return ChatGroq(
         model="openai/gpt-oss-120b",
-        api_key=os.getenv(
-            "GROQ_API_KEY"
-        ),
+        api_key=key,
         temperature=0
     )
 
@@ -19,10 +21,11 @@ def finalizer_agent(
     research: str,
     content: str,
     code: str,
-    evaluation: str
+    evaluation: str,
+    api_key: str | None = None
 ) -> str:
 
-    llm = get_llm()
+    llm = get_llm(api_key=api_key)
 
     prompt = f"""
 You are the Finalizer Agent in AgentSwarm.

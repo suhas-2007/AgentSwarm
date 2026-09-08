@@ -3,7 +3,8 @@ from tools.web_search import web_search
 
 def researcher_agent(
     goal: str,
-    task_description: str
+    task_description: str,
+    api_key: str | None = None
 ) -> str:
 
     search_query = (
@@ -16,7 +17,8 @@ def researcher_agent(
     )
 
     search_results = web_search(
-        search_query
+        search_query,
+        api_key=api_key
     )
 
     research = f"""

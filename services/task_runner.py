@@ -5,7 +5,7 @@ import traceback
 from sqlalchemy import select, update
 
 from database.connection import SessionLocal
-from database.models import Task
+from database.models import Task, User
 
 from graph.workflow import app as workflow_app
 
@@ -538,6 +538,30 @@ def run_task(
 
             return
 
+        user = db.scalar(
+            select(User).where(
+                User.id == task.user_id
+            )
+        ) if getattr(task, "user_id", None) else None
+
+        user_api_keys = {
+            "gemini": user.gemini_api_key if user and user.gemini_api_key else None,
+            "groq": user.groq_api_key if user and user.groq_api_key else None,
+            "tavily": user.tavily_api_key if user and user.tavily_api_key else None
+        }
+
+        if has_checkpoint and any(user_api_keys.values()):
+            try:
+                workflow_app.update_state(
+                    config,
+                    {"api_keys": user_api_keys}
+                )
+            except Exception as update_err:
+                print(
+                    f"[TASK RUNNER] Checkpoint api_keys update notice: {update_err}",
+                    flush=True
+                )
+
         initial_state = {
 
             "task_id":
@@ -586,7 +610,10 @@ def run_task(
                 "INITIAL",
 
             "status":
-                "STARTING"
+                "STARTING",
+
+            "api_keys":
+                user_api_keys
         }
 
         print(

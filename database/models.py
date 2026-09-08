@@ -33,9 +33,47 @@ class User(Base):
         index=True
     )
 
-    password_hash: Mapped[str] = mapped_column(
+    password_hash: Mapped[str | None] = mapped_column(
         String(255),
+        nullable=True
+    )
+
+    google_id: Mapped[str | None] = mapped_column(
+        String(255),
+        unique=True,
+        nullable=True,
+        index=True
+    )
+
+    auth_provider: Mapped[str] = mapped_column(
+        String(50),
+        default="local",
         nullable=False
+    )
+
+    name: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    avatar_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
+    gemini_api_key: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    groq_api_key: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    tavily_api_key: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
     )
 
     reset_token_hash: Mapped[str | None] = mapped_column(

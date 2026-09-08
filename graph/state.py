@@ -1,7 +1,7 @@
 from typing import TypedDict
 
 
-class PlanTask(TypedDict):
+class PlanTask(TypedDict, total=False):
     task_id: int
     description: str
     agent: str
@@ -9,7 +9,7 @@ class PlanTask(TypedDict):
     depends_on: list[int]
 
 
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     task_id: int
 
     user_goal: str
@@ -34,3 +34,5 @@ class AgentState(TypedDict):
     revision_reason: str
 
     status: str
+
+    api_keys: dict[str, str | None]

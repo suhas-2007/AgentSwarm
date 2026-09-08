@@ -3,13 +3,15 @@ import os
 from langchain_groq import ChatGroq
 
 
-def get_llm():
+def get_llm(api_key: str | None = None):
+
+    key = api_key or os.getenv(
+        "GROQ_API_KEY"
+    )
 
     return ChatGroq(
         model="openai/gpt-oss-120b",
-        groq_api_key=os.getenv(
-            "GROQ_API_KEY"
-        ),
+        groq_api_key=key,
         temperature=0
     )
 
@@ -19,10 +21,11 @@ def content_agent(
     task_description: str,
     research: str,
     evaluation: str,
-    human_feedback: str
+    human_feedback: str,
+    api_key: str | None = None
 ) -> str:
 
-    llm = get_llm()
+    llm = get_llm(api_key=api_key)
 
     previous_evaluation = (
         evaluation

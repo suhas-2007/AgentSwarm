@@ -5,6 +5,7 @@ import {
     EyeOff
 } from "lucide-react";
 import { API_URL } from "../config";
+import GoogleLoginButton from "../components/GoogleLoginButton";
 
 function Login() {
     const navigate = useNavigate();
@@ -62,6 +63,20 @@ function Login() {
                 "user_email",
                 data.email
             );
+
+            if (data.name) {
+                localStorage.setItem(
+                    "user_name",
+                    data.name
+                );
+            }
+
+            if (data.avatar_url) {
+                localStorage.setItem(
+                    "user_avatar",
+                    data.avatar_url
+                );
+            }
 
             navigate("/dashboard");
 
@@ -209,8 +224,10 @@ function Login() {
                     </form>
 
                     <div className="auth-divider">
-                        <span>or</span>
+                        <span>or continue with</span>
                     </div>
+
+                    <GoogleLoginButton onError={(msg) => setError(msg)} />
 
                     <p className="auth-switch">
                         Don't have an account?{" "}

@@ -1,3 +1,5 @@
+import inspect
+
 from agents.planner import planner_agent
 from agents.researcher import researcher_agent
 from agents.coder import coder_agent
@@ -10,6 +12,35 @@ from artifacts.manager import save_artifact
 from graph.state import AgentState
 
 from services.task_control import check_task_stopped
+
+
+def _call_agent(
+    agent_fn,
+    *args,
+    api_key: str | None = None,
+    **kwargs
+):
+    """
+    Safely invoke an agent function with an optional api_key parameter
+    if accepted by its signature, preserving compatibility with tests
+    that monkeypatch agent functions with standard signatures.
+    """
+    try:
+        sig = inspect.signature(agent_fn)
+        if (
+            "api_key" in sig.parameters
+            or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD
+                for p in sig.parameters.values()
+            )
+        ):
+            return agent_fn(*args, api_key=api_key, **kwargs)
+        return agent_fn(*args, **kwargs)
+    except Exception:
+        try:
+            return agent_fn(*args, api_key=api_key, **kwargs)
+        except TypeError:
+            return agent_fn(*args, **kwargs)
 
 
 def check_current_task_stopped(
@@ -35,8 +66,12 @@ def planner_node(
         state
     )
 
-    planner_result = planner_agent(
-        state["user_goal"]
+    api_keys = state.get("api_keys") or {}
+
+    planner_result = _call_agent(
+        planner_agent,
+        state["user_goal"],
+        api_key=api_keys.get("groq")
     )
 
     check_current_task_stopped(
@@ -75,9 +110,13 @@ def researcher_node(
         state
     )
 
-    research = researcher_agent(
+    api_keys = state.get("api_keys") or {}
+
+    research = _call_agent(
+        researcher_agent,
         state["user_goal"],
-        current_task["description"]
+        current_task["description"],
+        api_key=api_keys.get("tavily")
     )
 
     check_current_task_stopped(
@@ -103,12 +142,16 @@ def coder_node(
         state
     )
 
-    code = coder_agent(
+    api_keys = state.get("api_keys") or {}
+
+    code = _call_agent(
+        coder_agent,
         state["user_goal"],
         current_task["description"],
         state["research"],
         state["evaluation"],
-        state["human_feedback"]
+        state["human_feedback"],
+        api_key=api_keys.get("groq")
     )
 
     check_current_task_stopped(
@@ -148,12 +191,16 @@ def content_node(
         state
     )
 
-    content = content_agent(
+    api_keys = state.get("api_keys") or {}
+
+    content = _call_agent(
+        content_agent,
         state["user_goal"],
         current_task["description"],
         state["research"],
         state["evaluation"],
-        state["human_feedback"]
+        state["human_feedback"],
+        api_key=api_keys.get("groq")
     )
 
     check_current_task_stopped(
@@ -179,12 +226,16 @@ def evaluator_node(
         state
     )
 
-    evaluation = evaluator_agent(
+    api_keys = state.get("api_keys") or {}
+
+    evaluation = _call_agent(
+        evaluator_agent,
         state["user_goal"],
         evaluation_task,
         state["research"],
         state["code"],
-        state["content"]
+        state["content"],
+        api_key=api_keys.get("gemini")
     )
 
     check_current_task_stopped(
@@ -206,12 +257,16 @@ def finalizer_node(
         state
     )
 
-    final_answer = finalizer_agent(
+    api_keys = state.get("api_keys") or {}
+
+    final_answer = _call_agent(
+        finalizer_agent,
         state["user_goal"],
         state["research"],
         state["content"],
         state["code"],
-        state["evaluation"]
+        state["evaluation"],
+        api_key=api_keys.get("groq")
     )
 
     check_current_task_stopped(
@@ -245,11 +300,15 @@ def revision_node(
         "agent"
     ]
 
+    api_keys = state.get("api_keys") or {}
+
     if task_agent == "researcher":
 
-        research = researcher_agent(
+        research = _call_agent(
+            researcher_agent,
             state["user_goal"],
-            revision_task["description"]
+            revision_task["description"],
+            api_key=api_keys.get("tavily")
         )
 
         check_current_task_stopped(
@@ -267,12 +326,14 @@ def revision_node(
 
     if task_agent == "coder":
 
-        code = coder_agent(
+        code = _call_agent(
+            coder_agent,
             state["user_goal"],
             revision_task["description"],
             state["research"],
             state["evaluation"],
-            state["human_feedback"]
+            state["human_feedback"],
+            api_key=api_keys.get("groq")
         )
 
         check_current_task_stopped(
@@ -302,12 +363,14 @@ def revision_node(
 
     if task_agent == "content":
 
-        content = content_agent(
+        content = _call_agent(
+            content_agent,
             state["user_goal"],
             revision_task["description"],
             state["research"],
             state["evaluation"],
-            state["human_feedback"]
+            state["human_feedback"],
+            api_key=api_keys.get("groq")
         )
 
         check_current_task_stopped(

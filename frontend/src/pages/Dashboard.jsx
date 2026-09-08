@@ -7,12 +7,14 @@ import {
     MoreHorizontal,
     Share2,
     Trash2,
-    Download
+    Download,
+    Key
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./Dashboard.css";
 import { API_URL } from "../config";
+import ApiKeysModal from "../components/ApiKeysModal";
 
 
 function Dashboard() {
@@ -39,6 +41,12 @@ function Dashboard() {
     const [artifacts, setArtifacts] = useState([]);
     const [artifactsLoading, setArtifactsLoading] = useState(false);
     const [downloadingArtifact, setDownloadingArtifact] = useState(null);
+
+    const [showApiKeysModal, setShowApiKeysModal] = useState(false);
+
+    const userEmail = localStorage.getItem("user_email") || "";
+    const userName = localStorage.getItem("user_name") || (userEmail ? userEmail.split("@")[0] : "User");
+    const userAvatar = localStorage.getItem("user_avatar");
 
 
     const exampleTasks = [
@@ -1734,36 +1742,55 @@ function Dashboard() {
 
                 <div className="sidebar-bottom">
 
+                    <button
+                        type="button"
+                        className="api-keys-btn"
+                        onClick={() => setShowApiKeysModal(true)}
+                    >
+                        <span className="nav-icon">
+                            <Key size={16} />
+                        </span>
+                        API Keys & Credits
+                    </button>
+
                     <div className="account-card">
 
                         <div className="account-avatar">
-                            S
+                            {userAvatar ? (
+                                <img
+                                    src={userAvatar}
+                                    alt={userName}
+                                    className="account-avatar-img"
+                                />
+                            ) : (
+                                (userName || userEmail || "U")[0].toUpperCase()
+                            )}
                         </div>
-
 
                         <div className="account-details">
 
                             <strong>
-                                Suhas
+                                {userName || "User"}
                             </strong>
 
-                            <span>
-                                Free account
+                            <span title={userEmail}>
+                                {userEmail ? (userEmail.length > 18 ? userEmail.slice(0, 16) + "..." : userEmail) : "Personal Account"}
                             </span>
 
                         </div>
 
                     </div>
 
-
                     <Link
                         to="/"
                         className="logout-button"
-                        onClick={() =>
-                            localStorage.removeItem(
-                                "access_token"
-                            )
-                        }
+                        onClick={() => {
+                            localStorage.removeItem("access_token");
+                            localStorage.removeItem("user_id");
+                            localStorage.removeItem("user_email");
+                            localStorage.removeItem("user_name");
+                            localStorage.removeItem("user_avatar");
+                        }}
                     >
 
                         <span>
@@ -2471,6 +2498,11 @@ function Dashboard() {
                 </footer>
 
             </main>
+
+            <ApiKeysModal
+                isOpen={showApiKeysModal}
+                onClose={() => setShowApiKeysModal(false)}
+            />
 
         </div>
 

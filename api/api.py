@@ -1,6 +1,7 @@
 import json
 import os
 import secrets
+from contextlib import asynccontextmanager
 
 from fastapi import (
     APIRouter,
@@ -19,14 +20,16 @@ from pydantic import BaseModel
 
 from sqlalchemy import (
     delete,
+    inspect,
     select,
+    text,
     update
 )
 
 from sqlalchemy.orm import Session
 
-from database.connection import SessionLocal, get_db
-from database.models import Task, TaskShare
+from database.connection import Base, SessionLocal, engine, get_db
+from database.models import Task, TaskShare, User
 
 from auth.dependencies import get_current_user
 from auth.routes import router as auth_router
@@ -46,9 +49,42 @@ from services.task_control import (
 from services.task_runner import run_task
 
 
+def init_db():
+    try:
+        Base.metadata.create_all(bind=engine)
+        inspector = inspect(engine)
+        if "users" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("users")]
+            with engine.connect() as conn:
+                if "google_id" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN google_id VARCHAR(255)"))
+                if "auth_provider" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN auth_provider VARCHAR(50) DEFAULT 'local'"))
+                if "name" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR(255)"))
+                if "avatar_url" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)"))
+                if "gemini_api_key" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN gemini_api_key TEXT"))
+                if "groq_api_key" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN groq_api_key TEXT"))
+                if "tavily_api_key" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN tavily_api_key TEXT"))
+                conn.commit()
+    except Exception as exc:
+        print(f"[DB INIT] Table check notice: {exc}", flush=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="AgentSwarm API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 

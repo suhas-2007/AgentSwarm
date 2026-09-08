@@ -10,11 +10,21 @@ tavily = TavilyClient(
 )
 
 
+def get_tavily_client(api_key: str | None = None) -> TavilyClient:
+    key = api_key or os.getenv(
+        "TAVILY_API_KEY"
+    )
+    return TavilyClient(
+        api_key=key
+    )
+
+
 MAX_QUERY_LENGTH = 1500
 
 
 def web_search(
-    query: str
+    query: str,
+    api_key: str | None = None
 ) -> str:
 
     query = " ".join(
@@ -33,7 +43,13 @@ def web_search(
             :MAX_QUERY_LENGTH
         ]
 
-    results = tavily.search(
+    client = (
+        get_tavily_client(api_key)
+        if api_key
+        else tavily
+    )
+
+    results = client.search(
         query=query,
         max_results=5
     )
