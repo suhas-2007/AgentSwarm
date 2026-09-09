@@ -2,10 +2,17 @@
 
 ## Multi-Agent Task Orchestration Engine
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-AgentSwarm%20Web-00E599?style=for-the-badge&logo=render&logoColor=white)](https://agentswarm-web.onrender.com)
+[![API Status](https://img.shields.io/badge/Live%20API-FastAPI%20Swagger-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://agentswarm-api.onrender.com/docs)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+> 🌐 **Live Web Application**: [https://agentswarm-web.onrender.com](https://agentswarm-web.onrender.com)  
+> ⚡ **Live Backend API**: [https://agentswarm-api.onrender.com](https://agentswarm-api.onrender.com)  
+> 📚 **Interactive Swagger API Docs**: [https://agentswarm-api.onrender.com/docs](https://agentswarm-api.onrender.com/docs)  
+> 📖 **Interactive ReDoc**: [https://agentswarm-api.onrender.com/redoc](https://agentswarm-api.onrender.com/redoc)  
 
 AgentSwarm is a **stateful multi-agent AI platform** that decomposes user requests into smaller tasks and coordinates specialized AI agents to complete them.
 
