@@ -30,7 +30,7 @@ function Dashboard() {
     const [recentTasks, setRecentTasks] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [showAllTasks, setShowAllTasks] = useState(false);
-    const [openingTask, setOpeningTask] = useState(false);
+    const [openingTaskId, setOpeningTaskId] = useState(null);
 
     const [stoppingTask, setStoppingTask] = useState(false);
     const [deletingTaskId, setDeletingTaskId] = useState(null);
@@ -137,9 +137,12 @@ function Dashboard() {
             const data =
                 await response.json();
 
+            const artifactsList = Array.isArray(data)
+                ? data
+                : (Array.isArray(data?.artifacts) ? data.artifacts : []);
 
             setArtifacts(
-                data.artifacts || []
+                artifactsList
             );
 
 
@@ -405,9 +408,12 @@ function Dashboard() {
             const data =
                 await response.json();
 
+            const tasksList = Array.isArray(data)
+                ? data
+                : (Array.isArray(data?.tasks) ? data.tasks : []);
 
             setRecentTasks(
-                data.tasks || []
+                tasksList
             );
 
 
@@ -624,7 +630,7 @@ function Dashboard() {
         }
 
 
-        setOpeningTask(true);
+        setOpeningTaskId(taskId);
         setError("");
 
 
@@ -726,16 +732,16 @@ function Dashboard() {
 
             setTimeout(() => {
 
-                document
-                    .getElementById(
-                        "task-result"
-                    )
-                    ?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start"
-                    });
+                const element =
+                    document.getElementById("task-result") ||
+                    document.querySelector(".workflow-card");
 
-            }, 50);
+                element?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+
+            }, 120);
 
 
         } catch (err) {
@@ -751,7 +757,7 @@ function Dashboard() {
 
         } finally {
 
-            setOpeningTask(false);
+            setOpeningTaskId(null);
 
         }
 
@@ -2328,7 +2334,7 @@ function Dashboard() {
                         onRetry={handleRetryTask}
                         loading={
                             loading ||
-                            openingTask
+                            Boolean(openingTaskId)
                         }
                     />
 
@@ -2486,8 +2492,8 @@ function Dashboard() {
                                             handleDeleteTask
                                         }
 
-                                        openingTask={
-                                            openingTask
+                                        openingTaskId={
+                                            openingTaskId
                                         }
 
                                         deletingTaskId={
@@ -3553,12 +3559,18 @@ function RecentTask({
     onOpen,
     onShare,
     onDelete,
-    openingTask,
+    openingTaskId,
     deletingTaskId
 }) {
 
     const [menuOpen, setMenuOpen] =
         useState(false);
+
+    const isOpening =
+        openingTaskId === taskId;
+
+    const isDeleting =
+        deletingTaskId === taskId;
 
 
     const canDelete =
@@ -3612,7 +3624,9 @@ function RecentTask({
     ]);
 
 
-    const handleShare = async () => {
+    const handleShare = async (e) => {
+
+        e?.stopPropagation?.();
 
         setMenuOpen(false);
 
@@ -3626,7 +3640,9 @@ function RecentTask({
     };
 
 
-    const handleDelete = () => {
+    const handleDelete = (e) => {
+
+        e?.stopPropagation?.();
 
         setMenuOpen(false);
 
@@ -3640,7 +3656,25 @@ function RecentTask({
 
     return (
 
-        <div className="recent-card">
+        <div
+            className="recent-card recent-card-interactive"
+            onClick={(e) => {
+                if (!e.target.closest(".recent-actions")) {
+                    onOpen(taskId);
+                }
+            }}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    if (!e.target.closest(".recent-actions")) {
+                        e.preventDefault();
+                        onOpen(taskId);
+                    }
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            title="Click to open task"
+        >
 
             <div className="recent-top">
 
@@ -3684,15 +3718,14 @@ function RecentTask({
                     <button
                         type="button"
                         className="recent-open-button"
-                        disabled={openingTask}
-                        onClick={() =>
-                            onOpen(
-                                taskId
-                            )
-                        }
+                        disabled={isOpening}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpen(taskId);
+                        }}
                     >
 
-                        {openingTask
+                        {isOpening
                             ? "Opening..."
                             : "Open"
                         }
@@ -3708,12 +3741,13 @@ function RecentTask({
                                     ? "recent-menu-button-open"
                                     : ""
                                 }`}
-                            onClick={() =>
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 setMenuOpen(
                                     (previous) =>
                                         !previous
-                                )
-                            }
+                                );
+                            }}
                             title="More options"
                             aria-label="More options"
                             aria-expanded={
@@ -3760,8 +3794,7 @@ function RecentTask({
                                         type="button"
                                         className="recent-menu-item recent-menu-delete"
                                         disabled={
-                                            deletingTaskId ===
-                                            taskId
+                                            isDeleting
                                         }
                                         onClick={
                                             handleDelete
@@ -3776,8 +3809,7 @@ function RecentTask({
 
                                         <span>
 
-                                            {deletingTaskId ===
-                                                taskId
+                                            {isDeleting
                                                 ? "Deleting..."
                                                 : "Delete"
                                             }

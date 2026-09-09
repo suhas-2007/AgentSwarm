@@ -179,3 +179,64 @@ def test_approval_requires_feedback_when_rejected(db_session):
         "Feedback is required when rejecting "
         "an implementation."
     )
+
+
+def test_list_tasks_returns_list(db_session):
+    db = db_session
+    user = db.query(User).filter(
+        User.email == "test@example.com"
+    ).first()
+    if user is None:
+        user = User(
+            email="test@example.com",
+            password_hash="test-password"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    from database.models import Task
+    task = Task(
+        user_id=user.id,
+        goal="Task for list test",
+        status="COMPLETED"
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    response = client.get("/tasks")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert any(item["task_id"] == task.id for item in data)
+
+
+def test_list_artifacts_returns_list(db_session):
+    db = db_session
+    user = db.query(User).filter(
+        User.email == "test@example.com"
+    ).first()
+    if user is None:
+        user = User(
+            email="test@example.com",
+            password_hash="test-password"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    from database.models import Task
+    task = Task(
+        user_id=user.id,
+        goal="Artifact test task",
+        status="COMPLETED"
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    response = client.get(f"/tasks/{task.id}/artifacts")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
