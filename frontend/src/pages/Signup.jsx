@@ -6,6 +6,7 @@ import GoogleLoginButton from "../components/GoogleLoginButton";
 function Signup() {
     const navigate = useNavigate();
 
+    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
@@ -20,6 +21,7 @@ function Signup() {
         setIsAccountExists(false);
         setLoading(true);
 
+        const cleanName = name.trim();
         const cleanEmail = email.trim().toLowerCase();
 
         try {
@@ -33,6 +35,7 @@ function Signup() {
                     },
 
                     body: JSON.stringify({
+                        name: cleanName || undefined,
                         email: cleanEmail,
                         password: password
                     })
@@ -125,6 +128,24 @@ function Signup() {
                         className="auth-form"
                         onSubmit={handleSubmit}
                     >
+
+                        <div className="form-group">
+                            <label htmlFor="name">
+                                Your name
+                            </label>
+
+                            <input
+                                id="name"
+                                type="text"
+                                placeholder="What should we call you?"
+                                value={name}
+                                onChange={(event) =>
+                                    setName(event.target.value)
+                                }
+                                autoComplete="name"
+                                required
+                            />
+                        </div>
 
                         <div className="form-group">
                             <label htmlFor="email">

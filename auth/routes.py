@@ -24,7 +24,9 @@ from auth.schemas import (
     ResetPasswordRequest,
     ResetPasswordResponse,
     SignupRequest,
-    UpdateApiKeysRequest
+    UpdateApiKeysRequest,
+    UpdateProfileRequest,
+    UserProfileResponse
 )
 
 from auth.security import (
@@ -108,9 +110,12 @@ def signup(
         request.password
     )
 
+    clean_name = request.name.strip() if request.name and request.name.strip() else None
+
     user = User(
         email=clean_email,
-        password_hash=password_hash
+        password_hash=password_hash,
+        name=clean_name
     )
 
     db.add(user)
@@ -128,7 +133,9 @@ def signup(
         access_token=access_token,
         token_type="bearer",
         user_id=user.id,
-        email=user.email
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url
     )
 
 
@@ -538,4 +545,65 @@ def update_api_keys(
         groq_key_masked=mask_api_key(user.groq_api_key),
         has_tavily_key=bool(user.tavily_api_key),
         tavily_key_masked=mask_api_key(user.tavily_api_key)
+    )
+
+
+# =========================
+# PROFILE MANAGEMENT
+# =========================
+
+@router.get(
+    "/me",
+    response_model=UserProfileResponse
+)
+def get_current_user_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user = db.scalar(
+        select(User).where(User.id == current_user.id)
+    ) or current_user
+
+    return UserProfileResponse(
+        user_id=user.id,
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url
+    )
+
+
+@router.patch(
+    "/profile",
+    response_model=UserProfileResponse
+)
+def update_user_profile(
+    request: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    clean_name = request.name.strip()
+    if not clean_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Name cannot be empty."
+        )
+
+    user = db.scalar(
+        select(User).where(User.id == current_user.id)
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
+
+    user.name = clean_name
+    db.commit()
+    db.refresh(user)
+
+    return UserProfileResponse(
+        user_id=user.id,
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url
     )

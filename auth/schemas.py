@@ -7,6 +7,12 @@ from pydantic import BaseModel, EmailStr, Field
 
 class SignupRequest(BaseModel):
 
+    name: str | None = Field(
+        None,
+        max_length=100,
+        description="User full or preferred name."
+    )
+
     email: EmailStr = Field(
         ...,
         description="User email address."
@@ -141,3 +147,28 @@ class ResetPasswordResponse(BaseModel):
 class DeleteAccountResponse(BaseModel):
 
     message: str
+
+
+# =========================
+# PROFILE
+# =========================
+
+class UpdateProfileRequest(BaseModel):
+
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="User full or preferred name."
+    )
+
+
+class UserProfileResponse(BaseModel):
+
+    user_id: int
+
+    email: EmailStr
+
+    name: str | None = None
+
+    avatar_url: str | None = None

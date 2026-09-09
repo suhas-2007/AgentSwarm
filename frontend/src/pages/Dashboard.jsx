@@ -8,13 +8,15 @@ import {
     Share2,
     Trash2,
     Download,
-    Key
+    Key,
+    Pencil
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./Dashboard.css";
 import { API_URL } from "../config";
 import ApiKeysModal from "../components/ApiKeysModal";
+import NamePromptModal from "../components/NamePromptModal";
 
 
 function Dashboard() {
@@ -43,9 +45,12 @@ function Dashboard() {
     const [downloadingArtifact, setDownloadingArtifact] = useState(null);
 
     const [showApiKeysModal, setShowApiKeysModal] = useState(false);
+    const [showNameModal, setShowNameModal] = useState(false);
 
     const userEmail = localStorage.getItem("user_email") || "";
-    const userName = localStorage.getItem("user_name") || (userEmail ? userEmail.split("@")[0] : "User");
+    const [userName, setUserName] = useState(
+        localStorage.getItem("user_name") || ""
+    );
     const userAvatar = localStorage.getItem("user_avatar");
 
 
@@ -439,6 +444,28 @@ function Dashboard() {
     useEffect(() => {
 
         loadTaskHistory();
+
+        const accessToken = getAccessToken();
+        if (accessToken) {
+            fetch(`${API_URL}/auth/me`, {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            })
+                .then(async (res) => {
+                    if (!res.ok) return null;
+                    return res.json();
+                })
+                .then((data) => {
+                    if (data?.name) {
+                        setUserName(data.name);
+                        localStorage.setItem("user_name", data.name);
+                    } else if (!localStorage.getItem("user_name")) {
+                        setShowNameModal(true);
+                    }
+                })
+                .catch(() => {});
+        }
 
     }, []);
 
@@ -1913,10 +1940,23 @@ function Dashboard() {
                             WORKSPACE
                         </div>
 
+                        <div className="workspace-title-row">
 
-                        <h1>
-                            Good to see you, Suhas.
-                        </h1>
+                            <h1>
+                                Good to see you, {userName || (userEmail ? userEmail.split("@")[0] : "there")}.
+                            </h1>
+
+                            <button
+                                type="button"
+                                className="edit-name-button"
+                                title="Change display name"
+                                aria-label="Change display name"
+                                onClick={() => setShowNameModal(true)}
+                            >
+                                <Pencil size={15} />
+                            </button>
+
+                        </div>
 
                     </div>
 
@@ -2530,6 +2570,13 @@ function Dashboard() {
             <ApiKeysModal
                 isOpen={showApiKeysModal}
                 onClose={() => setShowApiKeysModal(false)}
+            />
+
+            <NamePromptModal
+                isOpen={showNameModal}
+                onClose={() => setShowNameModal(false)}
+                currentName={userName}
+                onSaveSuccess={(newName) => setUserName(newName)}
             />
 
         </div>

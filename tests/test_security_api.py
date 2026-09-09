@@ -8,6 +8,9 @@ import api.api as api_module
 
 @pytest.fixture
 def user_a(db_session):
+    existing = db_session.query(User).filter(User.email == "usera@example.com").first()
+    if existing:
+        return existing
     user = User(
         email="usera@example.com",
         password_hash=hash_password("Password123!")
@@ -20,6 +23,9 @@ def user_a(db_session):
 
 @pytest.fixture
 def user_b(db_session):
+    existing = db_session.query(User).filter(User.email == "userb@example.com").first()
+    if existing:
+        return existing
     user = User(
         email="userb@example.com",
         password_hash=hash_password("Password123!")
@@ -192,4 +198,43 @@ def test_google_user_conflict_and_login_handling(client, db_session):
     )
     assert login_res.status_code == 401
     assert "Invalid email or password" in login_res.json()["detail"]
+
+
+def test_signup_with_name(client, db_session):
+    """Verify signup accepts name and stores it in the database."""
+    res = client.post(
+        "/auth/signup",
+        json={
+            "name": "Jane Doe",
+            "email": "janedoe@example.com",
+            "password": "Password123!"
+        }
+    )
+    assert res.status_code == 201
+    data = res.json()
+    assert data["name"] == "Jane Doe"
+    assert data["email"] == "janedoe@example.com"
+
+    user = db_session.query(User).filter(User.email == "janedoe@example.com").first()
+    assert user is not None
+    assert user.name == "Jane Doe"
+
+
+def test_get_and_update_profile(client, test_user):
+    """Verify authenticated user can fetch profile and update their name."""
+    me_res = client.get("/auth/me")
+    assert me_res.status_code == 200
+    assert me_res.json()["email"] == test_user.email
+
+    update_res = client.patch(
+        "/auth/profile",
+        json={"name": "Alex Mercer"}
+    )
+    assert update_res.status_code == 200
+    assert update_res.json()["name"] == "Alex Mercer"
+
+    # Verify subsequent GET returns the new name
+    me_res2 = client.get("/auth/me")
+    assert me_res2.status_code == 200
+    assert me_res2.json()["name"] == "Alex Mercer"
 
