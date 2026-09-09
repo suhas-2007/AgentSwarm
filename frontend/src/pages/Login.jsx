@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
     Eye,
     EyeOff
@@ -9,6 +9,7 @@ import GoogleLoginButton from "../components/GoogleLoginButton";
 
 function Login() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -18,11 +19,20 @@ function Login() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
+    useEffect(() => {
+        const emailFromQuery = searchParams.get("email");
+        if (emailFromQuery) {
+            setEmail(emailFromQuery);
+        }
+    }, [searchParams]);
+
     async function handleSubmit(event) {
         event.preventDefault();
 
         setError("");
         setLoading(true);
+
+        const cleanEmail = email.trim().toLowerCase();
 
         try {
             const response = await fetch(
@@ -35,7 +45,7 @@ function Login() {
                     },
 
                     body: JSON.stringify({
-                        email: email,
+                        email: cleanEmail,
                         password: password
                     })
                 }
@@ -44,9 +54,13 @@ function Login() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.detail || "Login failed."
-                );
+                let detailMsg = "Login failed.";
+                if (typeof data.detail === "string") {
+                    detailMsg = data.detail;
+                } else if (Array.isArray(data.detail) && data.detail[0]?.msg) {
+                    detailMsg = data.detail[0].msg;
+                }
+                throw new Error(detailMsg);
             }
 
             localStorage.setItem(
@@ -201,9 +215,18 @@ function Login() {
                         </div>
 
                         {error && (
-                            <p className="auth-error">
-                                {error}
-                            </p>
+                            <div className="auth-alert error">
+                                <div className="auth-alert-icon">⚠️</div>
+                                <div className="auth-alert-body">
+                                    <div className="auth-alert-title">Sign In Failed</div>
+                                    <p className="auth-alert-message">{error}</p>
+                                    {error.toLowerCase().includes("google") && (
+                                        <p className="auth-alert-sub">
+                                            Please use the "Sign in with Google" button below.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
                         )}
 
                         <button

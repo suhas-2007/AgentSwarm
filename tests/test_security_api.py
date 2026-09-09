@@ -145,3 +145,51 @@ def test_auth_route_mounting_and_password_validation(client):
     )
     assert login_res.status_code == 200
     assert "access_token" in login_res.json()
+
+    # Duplicate signup with identical email returns 409
+    dup_res = client.post(
+        "/auth/signup",
+        json={"email": "newuser@example.com", "password": "Password123!"}
+    )
+    assert dup_res.status_code == 409
+    assert "already exists" in dup_res.json()["detail"].lower()
+
+    # Duplicate signup with different case and leading/trailing whitespace returns 409
+    dup_case_res = client.post(
+        "/auth/signup",
+        json={"email": "  NewUser@Example.COM  ", "password": "Password123!"}
+    )
+    assert dup_case_res.status_code == 409
+    assert "already exists" in dup_case_res.json()["detail"].lower()
+
+
+def test_google_user_conflict_and_login_handling(client, db_session):
+    """Verify that users registered with Google get clear guidance on signup & login."""
+    from database.models import User
+
+    # Create a user who registered via Google (no password_hash)
+    google_user = User(
+        email="googleuser@example.com",
+        password_hash=None,
+        auth_provider="google",
+        google_id="google-sub-12345"
+    )
+    db_session.add(google_user)
+    db_session.commit()
+
+    # Attempting to sign up with the same email gives 409 with Google notice
+    signup_res = client.post(
+        "/auth/signup",
+        json={"email": "GoogleUser@example.com", "password": "Password123!"}
+    )
+    assert signup_res.status_code == 409
+    assert "Google Sign-In" in signup_res.json()["detail"]
+
+    # Attempting to log in with password gives 401
+    login_res = client.post(
+        "/auth/login",
+        json={"email": "googleuser@example.com", "password": "Password123!"}
+    )
+    assert login_res.status_code == 401
+    assert "Invalid email or password" in login_res.json()["detail"]
+

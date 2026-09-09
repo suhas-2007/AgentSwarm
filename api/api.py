@@ -2,6 +2,9 @@ import json
 import os
 import secrets
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import (
     APIRouter,
@@ -169,6 +172,20 @@ def run_task_background(
             f"failed: {error}",
             flush=True
         )
+
+        try:
+            from services.task_runner import mark_task_failed
+            with SessionLocal() as db:
+                mark_task_failed(
+                    task_id,
+                    db,
+                    error_message=f"### ⚠️ Task Execution Error\n\n`{error}`"
+                )
+        except Exception as mark_err:
+            print(
+                f"[API] Failed to record task {task_id} failure: {mark_err}",
+                flush=True
+            )
 
 
 # ============================================================

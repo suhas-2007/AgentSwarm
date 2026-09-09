@@ -10,13 +10,17 @@ function Signup() {
     const [password, setPassword] = useState("");
 
     const [error, setError] = useState("");
+    const [isAccountExists, setIsAccountExists] = useState(false);
     const [loading, setLoading] = useState(false);
 
     async function handleSubmit(event) {
         event.preventDefault();
 
         setError("");
+        setIsAccountExists(false);
         setLoading(true);
+
+        const cleanEmail = email.trim().toLowerCase();
 
         try {
             const response = await fetch(
@@ -29,7 +33,7 @@ function Signup() {
                     },
 
                     body: JSON.stringify({
-                        email: email,
+                        email: cleanEmail,
                         password: password
                     })
                 }
@@ -38,9 +42,21 @@ function Signup() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.detail || "Signup failed."
-                );
+                let detailMsg = "Signup failed.";
+                if (typeof data.detail === "string") {
+                    detailMsg = data.detail;
+                } else if (Array.isArray(data.detail) && data.detail[0]?.msg) {
+                    detailMsg = data.detail[0].msg;
+                }
+
+                if (
+                    response.status === 409 ||
+                    detailMsg.toLowerCase().includes("already exists")
+                ) {
+                    setIsAccountExists(true);
+                }
+
+                throw new Error(detailMsg);
             }
 
             localStorage.setItem(
@@ -146,9 +162,27 @@ function Signup() {
                         </div>
 
                         {error && (
-                            <p className="auth-error">
-                                {error}
-                            </p>
+                            <div className={`auth-alert ${isAccountExists ? "warning" : "error"}`}>
+                                <div className="auth-alert-icon">
+                                    {isAccountExists ? "ℹ" : "⚠️"}
+                                </div>
+                                <div className="auth-alert-body">
+                                    <div className="auth-alert-title">
+                                        {isAccountExists ? "Account Already Exists" : "Signup Failed"}
+                                    </div>
+                                    <p className="auth-alert-message">
+                                        {error}
+                                    </p>
+                                    {isAccountExists && (
+                                        <Link
+                                            to={`/login?email=${encodeURIComponent(email.trim())}`}
+                                            className="auth-alert-link"
+                                        >
+                                            Sign in to your account →
+                                        </Link>
+                                    )}
+                                </div>
+                            </div>
                         )}
 
                         <button

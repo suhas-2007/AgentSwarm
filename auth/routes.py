@@ -8,7 +8,7 @@ from fastapi import (
     status
 )
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
@@ -77,19 +77,30 @@ def signup(
     db: Session = Depends(get_db)
 ):
 
+    clean_email = request.email.strip().lower()
+
     existing_user = db.scalar(
         select(User).where(
-            User.email == request.email
+            func.lower(func.trim(User.email)) == clean_email
         )
     )
 
     if existing_user:
 
+        if existing_user.auth_provider == "google" and not existing_user.password_hash:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "An account with this email already exists via Google Sign-In. "
+                    "Please sign in with Google or reset your password to create a password."
+                )
+            )
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 "An account with this email "
-                "already exists."
+                "already exists. Please sign in instead."
             )
         )
 
@@ -98,7 +109,7 @@ def signup(
     )
 
     user = User(
-        email=request.email,
+        email=clean_email,
         password_hash=password_hash
     )
 
@@ -134,9 +145,11 @@ def login(
     db: Session = Depends(get_db)
 ):
 
+    clean_email = request.email.strip().lower()
+
     user = db.scalar(
         select(User).where(
-            User.email == request.email
+            func.lower(func.trim(User.email)) == clean_email
         )
     )
 
@@ -228,13 +241,14 @@ def google_auth(
             detail="Google account did not return a valid email address."
         )
 
+    clean_email = email.strip().lower()
     google_sub = idinfo.get("sub")
     name = idinfo.get("name")
     picture = idinfo.get("picture")
 
     user = db.scalar(
         select(User).where(
-            User.email == email
+            func.lower(func.trim(User.email)) == clean_email
         )
     )
 
@@ -249,7 +263,7 @@ def google_auth(
         db.refresh(user)
     else:
         user = User(
-            email=email,
+            email=clean_email,
             password_hash=None,
             google_id=google_sub,
             auth_provider="google",
@@ -288,9 +302,11 @@ def forgot_password(
     db: Session = Depends(get_db)
 ):
 
+    clean_email = request.email.strip().lower()
+
     user = db.scalar(
         select(User).where(
-            User.email == request.email
+            func.lower(func.trim(User.email)) == clean_email
         )
     )
 

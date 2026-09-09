@@ -1233,6 +1233,21 @@ function Dashboard() {
 
     };
 
+    const handleRetryTask = (goal) => {
+        if (goal) {
+            setTask(goal);
+            setError("");
+            const formEl = document.querySelector(".task-form textarea");
+            if (formEl) {
+                formEl.focus();
+                formEl.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+            }
+        }
+    };
+
 
     // =====================================================
     // CREATE NEW TASK
@@ -2276,6 +2291,12 @@ function Dashboard() {
                                 : "Waiting for your next task"
                             }
 
+                            {taskState?.status === "FAILED" && (
+                                <span className="workflow-failure-hint">
+                                    — see error details below
+                                </span>
+                            )}
+
                         </div>
 
                     </div>
@@ -2304,6 +2325,7 @@ function Dashboard() {
                         deletingTaskId={
                             deletingTaskId
                         }
+                        onRetry={handleRetryTask}
                         loading={
                             loading ||
                             openingTask
@@ -2706,6 +2728,7 @@ function TaskResult({
     stoppingTask,
     onDelete,
     deletingTaskId,
+    onRetry,
     loading
 }) {
 
@@ -2868,7 +2891,9 @@ function TaskResult({
 
                             )
 
-                            : "Planning in progress..."}
+                            : failed
+                                ? "Did not run (task failed)"
+                                : "Planning in progress..."}
 
                     </div>
 
@@ -2900,7 +2925,9 @@ function TaskResult({
 
                             )
 
-                            : "Research in progress..."}
+                            : failed
+                                ? "Did not run (task failed)"
+                                : "Research in progress..."}
 
                     </div>
 
@@ -2932,7 +2959,9 @@ function TaskResult({
 
                             )
 
-                            : "Content generation in progress..."}
+                            : failed
+                                ? "Did not run (task failed)"
+                                : "Content generation in progress..."}
 
                     </div>
 
@@ -2964,7 +2993,9 @@ function TaskResult({
 
                             )
 
-                            : "Code generation not required or in progress..."}
+                            : failed
+                                ? "Did not run (task failed)"
+                                : "Code generation not required or in progress..."}
 
                     </div>
 
@@ -3011,7 +3042,9 @@ function TaskResult({
 
                                 )
 
-                                : "Review in progress..."}
+                                : failed
+                                    ? "Did not run (task failed)"
+                                    : "Review in progress..."}
 
                     </div>
 
@@ -3253,33 +3286,53 @@ function TaskResult({
 
 
                         <p>
-                            This task is no longer running and can be removed from your history.
+                            {failed
+                                ? "This task did not complete. You can retry it with the same goal or remove it."
+                                : "This task is no longer running and can be removed from your history."
+                            }
                         </p>
 
                     </div>
 
 
-                    <button
-                        type="button"
-                        className="delete-task-button"
-                        disabled={
-                            deletingTaskId ===
-                            taskState.task_id
-                        }
-                        onClick={() =>
-                            onDelete(
+                    <div className="task-control-actions">
+
+                        {failed && onRetry && (
+                            <button
+                                type="button"
+                                className="retry-task-button"
+                                onClick={() =>
+                                    onRetry(taskState.goal)
+                                }
+                                title="Load goal and retry"
+                            >
+                                ↺ Retry task
+                            </button>
+                        )}
+
+                        <button
+                            type="button"
+                            className="delete-task-button"
+                            disabled={
+                                deletingTaskId ===
                                 taskState.task_id
-                            )
-                        }
-                    >
+                            }
+                            onClick={() =>
+                                onDelete(
+                                    taskState.task_id
+                                )
+                            }
+                        >
 
-                        {deletingTaskId ===
-                            taskState.task_id
-                            ? "Deleting..."
-                            : "Delete task"
-                        }
+                            {deletingTaskId ===
+                                taskState.task_id
+                                ? "Deleting..."
+                                : "Delete task"
+                            }
 
-                    </button>
+                        </button>
+
+                    </div>
 
                 </div>
 
@@ -3431,6 +3484,52 @@ function TaskResult({
                     </div>
 
                 )}
+
+            {failed && (
+
+                <div className="task-failure-panel">
+
+                    <div className="task-failure-header">
+
+                        <div className="failure-icon">
+                            ⚠️
+                        </div>
+
+                        <div>
+
+                            <div className="small-label" style={{ color: "#ef4444" }}>
+                                ERROR DETAILS
+                            </div>
+
+                            <h3>
+                                Why this task failed
+                            </h3>
+
+                        </div>
+
+                    </div>
+
+                    <div className="task-failure-content">
+
+                        {taskState.final_answer ? (
+                            <ReactMarkdown
+                                remarkPlugins={[
+                                    remarkGfm
+                                ]}
+                            >
+                                {taskState.final_answer}
+                            </ReactMarkdown>
+                        ) : (
+                            <p>
+                                An error occurred while executing this workflow. Check your API keys and configuration in the left sidebar, or click Retry above.
+                            </p>
+                        )}
+
+                    </div>
+
+                </div>
+
+            )}
 
         </section>
 
