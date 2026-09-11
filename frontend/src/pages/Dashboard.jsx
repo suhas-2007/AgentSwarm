@@ -4732,26 +4732,94 @@ function getTeamStatus(
 // TASK TIME
 // =========================================================
 
-function formatTaskTime(
+function parseUtcDate(
     createdAt
 ) {
 
     if (!createdAt) {
 
-        return "";
+        return null;
 
     }
 
 
-    const created =
-        new Date(createdAt);
+    if (createdAt instanceof Date) {
 
-
-    if (
-        Number.isNaN(
-            created.getTime()
+        return Number.isNaN(
+            createdAt.getTime()
         )
-    ) {
+            ? null
+            : createdAt;
+
+    }
+
+
+    if (typeof createdAt === "number") {
+
+        const d = new Date(createdAt);
+
+        return Number.isNaN(
+            d.getTime()
+        )
+            ? null
+            : d;
+
+    }
+
+
+    if (typeof createdAt === "string") {
+
+        let str = createdAt.trim();
+
+        if (!str) {
+
+            return null;
+
+        }
+
+        // If string does not specify timezone offset (+HH:MM, -HH:MM, or Z),
+        // treat it as UTC since backend timestamps are stored in UTC.
+        if (
+            !/(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(
+                str
+            )
+        ) {
+
+            str = str.replace(" ", "T") + "Z";
+
+        }
+
+        const d = new Date(str);
+
+        return Number.isNaN(
+            d.getTime()
+        )
+            ? null
+            : d;
+
+    }
+
+
+    const d = new Date(createdAt);
+
+    return Number.isNaN(
+        d.getTime()
+    )
+        ? null
+        : d;
+
+}
+
+
+function formatTaskTime(
+    createdAt
+) {
+
+    const created =
+        parseUtcDate(createdAt);
+
+
+    if (!created) {
 
         return "";
 
@@ -4765,6 +4833,14 @@ function formatTaskTime(
     const difference =
         now.getTime() -
         created.getTime();
+
+
+    // Handle tasks just created or client-server clock skew
+    if (difference < 45000) {
+
+        return "Just now";
+
+    }
 
 
     const minutes =

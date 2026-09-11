@@ -240,3 +240,38 @@ def test_list_artifacts_returns_list(db_session):
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
+
+
+def test_task_created_at_utc_serialization(db_session):
+    db = db_session
+    user = db.query(User).filter(
+        User.email == "test@example.com"
+    ).first()
+    if user is None:
+        user = User(
+            email="test@example.com",
+            password_hash="test-password"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    from database.models import Task
+    task = Task(
+        user_id=user.id,
+        goal="Timezone test task",
+        status="COMPLETED"
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    response = client.get("/tasks")
+    assert response.status_code == 200
+    data = response.json()
+    matching = next((item for item in data if item["task_id"] == task.id), None)
+    assert matching is not None
+    assert "created_at" in matching
+    assert matching["created_at"] is not None
+    # Must have UTC timezone indicator (+00:00 or Z)
+    assert matching["created_at"].endswith("Z") or "+00:00" in matching["created_at"]

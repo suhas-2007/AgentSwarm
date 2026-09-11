@@ -1,6 +1,7 @@
 import json
 import os
 import secrets
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
@@ -322,6 +323,23 @@ def get_completed_tasks(
 # TASK RESPONSE
 # ============================================================
 
+def serialize_datetime(dt: datetime | str | None) -> str | None:
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        s = dt.strip()
+        if not s:
+            return None
+        if not (s.endswith("Z") or ("+" in s[10:]) or ("-" in s[10:])):
+            return s.replace(" ", "T") + "Z"
+        return s
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat()
+
+
 def task_response(
     task: Task
 ) -> dict:
@@ -342,7 +360,9 @@ def task_response(
         "completed_tasks": get_completed_tasks(
             task
         ),
-        "created_at": task.created_at
+        "created_at": serialize_datetime(
+            task.created_at
+        )
     }
 
 
