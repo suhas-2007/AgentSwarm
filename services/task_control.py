@@ -5,16 +5,11 @@ from database.models import Task
 
 
 class TaskStopped(Exception):
-    """
-    Raised when a task has been stopped by the user.
-    """
-
+    # raised when user stops a task
     pass
 
 
-# ============================================================
-# TASK STATUS DEFINITIONS
-# ============================================================
+# all valid task statuses
 
 VALID_TASK_STATUSES = {
     "STARTING",
@@ -151,10 +146,7 @@ ALLOWED_STATUS_TRANSITIONS = {
 def validate_task_status(
     status: str
 ) -> None:
-    """
-    Validate that a status is a known AgentSwarm
-    task status.
-    """
+    # make sure status is valid
 
     if status not in VALID_TASK_STATUSES:
 
@@ -167,12 +159,7 @@ def validate_status_transition(
     current_status: str,
     new_status: str
 ) -> None:
-    """
-    Validate a task status transition.
-
-    Terminal states cannot transition to another
-    state.
-    """
+    # check if transition between statuses is allowed
 
     validate_task_status(
         current_status
@@ -203,10 +190,7 @@ def validate_status_transition(
 def is_terminal_status(
     status: str
 ) -> bool:
-    """
-    Return True when a task has reached a
-    terminal state.
-    """
+    # returns True if task is finished/stopped/failed
 
     validate_task_status(
         status

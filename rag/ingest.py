@@ -8,9 +8,7 @@ from rag.vector_store import (
 from rag.chunker import chunk_text
 
 
-# Resolve the documents directory relative to
-# this file so ingestion works regardless of
-# the current working directory.
+# path to text files
 DOCUMENTS_DIR = (
     Path(__file__).resolve().parent
     / "documents"
@@ -92,12 +90,10 @@ if __name__ == "__main__":
 
     else:
 
-        # Remove the previous knowledge base
-        # before rebuilding it from the current
-        # document set.
+        # wipe old collection first
         reset_collection()
 
-        # Add new chunks with metadata.
+        # insert chunks
         add_documents(
             documents,
             ids,

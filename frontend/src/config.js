@@ -1,9 +1,4 @@
-// ==============================================================================
-// AgentSwarm Frontend Configuration
-// ==============================================================================
-// In production, VITE_API_URL points to the deployed FastAPI backend.
-// In local development, it defaults to http://127.0.0.1:8000.
-// ==============================================================================
+// backend api url (points to deployed api or localhost in dev)
 
 export const API_URL = (
     import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"

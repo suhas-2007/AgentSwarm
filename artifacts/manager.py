@@ -268,14 +268,7 @@ def _remove_readonly(
     path,
     exc_info
 ):
-    """
-    Retry filesystem deletion after removing
-    the read-only attribute.
-
-    This is useful on Windows/OneDrive where
-    generated files can occasionally be marked
-    read-only.
-    """
+    # handle read-only files on windows/onedrive
 
     try:
 

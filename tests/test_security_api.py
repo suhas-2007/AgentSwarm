@@ -45,7 +45,7 @@ def client_user_b(user_b):
 
 
 def test_cross_user_task_isolation(client_user_b, db_session, user_a):
-    """Ensure User B cannot view, modify, stop, delete, share or approve User A's task."""
+    # make sure user b can't access user a tasks
     task_a = Task(
         goal="Private goal of User A",
         status="WAITING_FOR_HUMAN",
@@ -84,7 +84,7 @@ def test_cross_user_task_isolation(client_user_b, db_session, user_a):
 
 
 def test_share_token_security_and_sanitization(client, db_session, test_user):
-    """Ensure share tokens only expose intended completed task data and block incomplete tasks."""
+    # verify share token only exposes completed task
     completed_task = Task(
         goal="Completed research",
         status="COMPLETED",
@@ -128,7 +128,7 @@ def test_share_token_security_and_sanitization(client, db_session, test_user):
 
 
 def test_auth_route_mounting_and_password_validation(client):
-    """Verify that auth endpoints are properly reachable at /auth/* and enforce password policy."""
+    # test auth routes and password validation
     # Weak password (<8 characters)
     weak_signup = client.post(
         "/auth/signup",
@@ -170,7 +170,7 @@ def test_auth_route_mounting_and_password_validation(client):
 
 
 def test_google_user_conflict_and_login_handling(client, db_session):
-    """Verify that users registered with Google get clear guidance on signup & login."""
+    # handle google user conflict on password login
     from database.models import User
 
     # Create a user who registered via Google (no password_hash)
@@ -201,7 +201,7 @@ def test_google_user_conflict_and_login_handling(client, db_session):
 
 
 def test_signup_with_name(client, db_session):
-    """Verify signup accepts name and stores it in the database."""
+    # test signup with optional name
     res = client.post(
         "/auth/signup",
         json={
@@ -221,7 +221,7 @@ def test_signup_with_name(client, db_session):
 
 
 def test_get_and_update_profile(client, test_user):
-    """Verify authenticated user can fetch profile and update their name."""
+    # test getting and updating profile name
     me_res = client.get("/auth/me")
     assert me_res.status_code == 200
     assert me_res.json()["email"] == test_user.email

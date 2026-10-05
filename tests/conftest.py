@@ -13,10 +13,7 @@ from database.connection import Base, get_db
 from database.models import User
 
 
-# ============================================================
-# TEST DATABASE
-# ============================================================
-
+# in-memory sqlite db for tests
 engine = create_engine(
     "sqlite://",
     connect_args={
@@ -38,10 +35,7 @@ Base.metadata.create_all(
 )
 
 
-# ============================================================
-# DATABASE FIXTURE
-# ============================================================
-
+# db session fixture
 @pytest.fixture
 def db_session():
 
@@ -54,10 +48,7 @@ def db_session():
         db.close()
 
 
-# ============================================================
-# TEST USER
-# ============================================================
-
+# test user fixture
 @pytest.fixture
 def test_user(
     db_session
@@ -87,10 +78,7 @@ def test_user(
     return user
 
 
-# ============================================================
-# SHARED DEPENDENCY OVERRIDES
-# ============================================================
-
+# override fastapi dependencies for testing
 @pytest.fixture(autouse=True)
 def override_dependencies(
     test_user
@@ -127,10 +115,7 @@ def override_dependencies(
     api_module.app.dependency_overrides.clear()
 
 
-# ============================================================
-# FASTAPI TEST CLIENT
-# ============================================================
-
+# test client fixture
 @pytest.fixture
 def client():
 

@@ -15,20 +15,12 @@ class FakeDB:
         self.refreshed_objects = []
 
     def execute(self, statement):
-        """
-        Simulate the SQLAlchemy UPDATE used by
-        sync_task_from_state().
-
-        The statement contains the STOPPED protection
-        condition. For these tests, we reproduce the
-        important behavior against the fake Task object.
-        """
-
+        # mock update call
         task_id = statement._where_criteria[0].right.value
 
         assert task_id is not None
 
-        # Determine whether the UPDATE is allowed.
+        # check if stopped
         if hasattr(self, "task") and self.task.status == "STOPPED":
             return FakeResult(0)
 
@@ -38,7 +30,7 @@ class FakeDB:
 
             column_name = column.key
 
-            # SQLAlchemy may wrap literal values.
+            # unwrap value if needed
             if hasattr(value, "value"):
                 value = value.value
 

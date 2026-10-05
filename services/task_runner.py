@@ -26,11 +26,7 @@ RETRY_DELAYS = [2, 4]
 def is_retryable_error(
     error: Exception
 ) -> bool:
-    """
-    Determine whether an exception is likely
-    to be caused by a temporary external
-    service or network problem.
-    """
+    # check if error is temporary so we can retry
 
     error_text = str(error).lower()
 
@@ -68,17 +64,7 @@ def sync_task_from_state(
     state: dict,
     db
 ):
-    """
-    Synchronize the persisted task with the latest
-    LangGraph checkpoint state.
-
-    Checkpoint states may skip intermediate lifecycle
-    statuses, so transition validation is intentionally
-    not performed here.
-
-    The database condition protects STOPPED tasks from
-    being overwritten by an older or concurrent worker.
-    """
+    # sync latest task state from langgraph to db
 
     new_status = state.get(
         "status",
@@ -166,11 +152,7 @@ def claim_task(
     task_id: int,
     db
 ) -> bool:
-    """
-    Atomically claim a newly created task.
-
-    Only STARTING tasks can be claimed.
-    """
+    # claim task: move status from STARTING to RUNNING
 
     validate_status_transition(
         "STARTING",
@@ -196,9 +178,7 @@ def claim_task(
 def get_checkpoint_state(
     config: dict
 ):
-    """
-    Read the latest LangGraph checkpoint.
-    """
+    # get current checkpoint from workflow
 
     try:
 
@@ -347,10 +327,7 @@ def run_workflow_with_retry(
     task_id: int,
     resume: bool = False
 ):
-    """
-    Execute LangGraph with limited retries for
-    temporary external-service failures.
-    """
+    # run langgraph with retries if external api fails
 
     for attempt in range(
         1,

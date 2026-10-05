@@ -71,9 +71,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // LOAD TASK ARTIFACTS
-    // =====================================================
+    // load task artifacts
 
     const loadArtifacts = async (taskId) => {
 
@@ -170,9 +168,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // DOWNLOAD TASK ARTIFACT
-    // =====================================================
+    // download task artifact
 
     const handleDownloadArtifact = async (
         taskId,
@@ -340,9 +336,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // LOAD TASK HISTORY
-    // =====================================================
+    // load task history
 
     const loadTaskHistory = async () => {
 
@@ -470,9 +464,7 @@ function Dashboard() {
     }, []);
 
 
-    // =====================================================
-    // POLL CURRENT TASK STATUS
-    // =====================================================
+    // poll current task status
 
     useEffect(() => {
 
@@ -631,9 +623,7 @@ function Dashboard() {
     ]);
 
 
-    // =====================================================
-    // OPEN A PREVIOUS TASK
-    // =====================================================
+    // open a previous task
 
     const handleOpenTask = async (
         taskId
@@ -791,9 +781,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // SHARE TASK
-    // =====================================================
+    // share task
 
     const handleShareTask = async (
         taskId,
@@ -960,9 +948,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // STOP TASK
-    // =====================================================
+    // stop task
 
     const handleStopTask = async (
         taskId
@@ -1110,9 +1096,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // DELETE TASK
-    // =====================================================
+    // delete task
 
     const handleDeleteTask = async (
         taskId
@@ -1252,9 +1236,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // EXAMPLE TASK
-    // =====================================================
+    // example task
 
     const handleExampleClick = (
         example
@@ -1282,9 +1264,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // CREATE NEW TASK
-    // =====================================================
+    // create new task
 
     const handleSubmit = async (
         event
@@ -1413,9 +1393,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // HUMAN APPROVAL
-    // =====================================================
+    // human approval
 
     const handleApproval = async (
         approved
@@ -1562,9 +1540,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // DELETE ACCOUNT
-    // =====================================================
+    // delete account
 
     const handleDeleteAccount = async () => {
 
@@ -1652,9 +1628,7 @@ function Dashboard() {
     };
 
 
-    // =====================================================
-    // TASKS TO DISPLAY
-    // =====================================================
+    // tasks to display
 
     const displayedTasks =
         showAllTasks
@@ -2586,9 +2560,7 @@ function Dashboard() {
 }
 
 
-// =========================================================
-// TEAM MEMBER
-// =========================================================
+// team member
 
 function TeamMember({
     icon,
@@ -2651,9 +2623,7 @@ function TeamMember({
 }
 
 
-// =========================================================
-// WORKFLOW STEP
-// =========================================================
+// workflow step
 
 function WorkflowStep({
     number,
@@ -2738,9 +2708,7 @@ function WorkflowStep({
 }
 
 
-// =========================================================
-// WORKFLOW LINE
-// =========================================================
+// workflow line
 
 function WorkflowLine({
     status
@@ -2764,9 +2732,7 @@ function WorkflowLine({
 }
 
 
-// =========================================================
-// TASK RESULT
-// =========================================================
+// task result
 
 function TaskResult({
     taskState,
@@ -3106,9 +3072,7 @@ function TaskResult({
             </div>
 
 
-            {/* =================================================
-                GENERATED ARTIFACTS
-            ================================================= */}
+            {/* generated artifacts */}
 
             {(artifactsLoading ||
                 artifacts.length > 0) && (
@@ -3591,9 +3555,7 @@ function TaskResult({
 }
 
 
-// =========================================================
-// RECENT TASK
-// =========================================================
+// recent task
 
 function RecentTask({
     icon,
@@ -3884,9 +3846,7 @@ function RecentTask({
 }
 
 
-// =========================================================
-// TASK TITLE
-// =========================================================
+// task title
 
 function getTaskTitle(goal) {
 
@@ -3909,9 +3869,7 @@ function getTaskTitle(goal) {
 }
 
 
-// =========================================================
-// TASK ICON
-// =========================================================
+// task icon
 
 function getTaskIcon(status) {
 
@@ -3961,9 +3919,7 @@ function getTaskIcon(status) {
 }
 
 
-// =========================================================
-// STATUS TYPE
-// =========================================================
+// status type
 
 function getStatusType(status) {
 
@@ -4013,9 +3969,7 @@ function getStatusType(status) {
 }
 
 
-// =========================================================
-// WORKFLOW STATUS
-// =========================================================
+// workflow status
 
 function getWorkflowStage(status) {
 
@@ -4090,9 +4044,7 @@ function getWorkflowStage(status) {
 }
 
 
-// =========================================================
-// WORKFLOW STEP STATUS
-// =========================================================
+// workflow step status
 
 function getWorkflowStepStatus(
     status,
@@ -4263,9 +4215,7 @@ function getWorkflowStepStatus(
 }
 
 
-// =========================================================
-// WORKFLOW LINE STATUS
-// =========================================================
+// workflow line status
 
 function getWorkflowLineStatus(
     status,
@@ -4313,9 +4263,7 @@ function getWorkflowLineStatus(
 }
 
 
-// =========================================================
-// WORKER PILL CLASS & STATUS
-// =========================================================
+// worker pill class & status
 
 function getWorkerPillClass(taskState, worker) {
     if (!taskState) {
@@ -4395,9 +4343,7 @@ function getWorkerPillStatusText(taskState, worker) {
 }
 
 
-// =========================================================
-// DECISION BRANCH CLASS
-// =========================================================
+// decision branch class
 
 function getDecisionBranchClass(taskState, branch) {
     if (!taskState) {
@@ -4428,9 +4374,7 @@ function getDecisionBranchClass(taskState, branch) {
 }
 
 
-// =========================================================
-// WORKFLOW BADGE
-// =========================================================
+// workflow badge
 
 function getWorkflowBadge(status) {
 
@@ -4494,9 +4438,7 @@ function getWorkflowBadge(status) {
 }
 
 
-// =========================================================
-// WORKFLOW BADGE CLASS
-// =========================================================
+// workflow badge class
 
 function getWorkflowBadgeClass(
     status
@@ -4564,9 +4506,7 @@ function getWorkflowBadgeClass(
 }
 
 
-// =========================================================
-// WORKFLOW DOT CLASS
-// =========================================================
+// workflow dot class
 
 function getWorkflowDotClass(
     status
@@ -4634,9 +4574,7 @@ function getWorkflowDotClass(
 }
 
 
-// =========================================================
-// AI TEAM STATUS
-// =========================================================
+// ai team status
 
 function getTeamStatus(
     status,
@@ -4728,9 +4666,7 @@ function getTeamStatus(
 }
 
 
-// =========================================================
-// TASK TIME
-// =========================================================
+// task time
 
 function parseUtcDate(
     createdAt
@@ -4894,9 +4830,7 @@ function formatTaskTime(
 }
 
 
-// =========================================================
-// STATUS LABEL
-// =========================================================
+// status label
 
 function formatStatus(
     status
@@ -4955,9 +4889,7 @@ function formatStatus(
 }
 
 
-// =========================================================
-// ARTIFACT SIZE
-// =========================================================
+// artifact size
 
 function formatArtifactSize(
     size

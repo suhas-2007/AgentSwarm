@@ -31,9 +31,7 @@ load_dotenv()
 MAX_REVISIONS = 2
 
 
-# =========================================================
-# DATABASE CONFIGURATION
-# =========================================================
+# db setup
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL"
@@ -82,9 +80,7 @@ def get_psycopg_url() -> str:
     return DATABASE_URL
 
 
-# =========================================================
-# TASK ROUTER
-# =========================================================
+# route to proper agent based on current task
 
 def task_router(
     state: AgentState
@@ -110,9 +106,7 @@ def task_router(
     )
 
 
-# =========================================================
-# EVALUATOR ROUTING
-# =========================================================
+# check evaluator verdict
 
 def evaluator_route(
     state: AgentState
@@ -142,9 +136,7 @@ def evaluator_route(
     return "human"
 
 
-# =========================================================
-# HUMAN ROUTING
-# =========================================================
+# check if human approved or rejected
 
 def human_route(
     state: AgentState
@@ -169,9 +161,7 @@ def human_route(
     return "end"
 
 
-# =========================================================
-# REVISION PREPARATION
-# =========================================================
+# prepare revision state
 
 def prepare_evaluator_revision(
     state: AgentState
@@ -258,9 +248,7 @@ def get_revision_task_for_workflow(
     )
 
 
-# =========================================================
-# HUMAN APPROVAL PREPARATION
-# =========================================================
+# wait for human review
 
 def prepare_human_approval(
     state: AgentState
@@ -274,9 +262,7 @@ def prepare_human_approval(
     }
 
 
-# =========================================================
-# EVALUATION UNAVAILABLE
-# =========================================================
+# set status if evaluation failed
 
 def prepare_evaluation_unavailable(
     state: AgentState
@@ -290,9 +276,7 @@ def prepare_evaluation_unavailable(
     }
 
 
-# =========================================================
-# BUILD LANGGRAPH WORKFLOW
-# =========================================================
+# define state graph
 
 workflow = StateGraph(
     AgentState
@@ -383,9 +367,7 @@ workflow.add_node(
 )
 
 
-# =========================================================
-# START → PLANNER
-# =========================================================
+# start with planner
 
 workflow.add_edge(
     START,
@@ -393,9 +375,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# PLANNER → SCHEDULER
-# =========================================================
+# planner to task scheduler
 
 workflow.add_edge(
     "planner",
@@ -403,9 +383,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# SCHEDULER → WORKER / EVALUATOR
-# =========================================================
+# send task to worker or evaluator
 
 workflow.add_conditional_edges(
     "prepare_next_task",
@@ -426,9 +404,7 @@ workflow.add_conditional_edges(
 )
 
 
-# =========================================================
-# WORKERS → MARK TASK COMPLETE
-# =========================================================
+# workers complete task
 
 workflow.add_edge(
     "researcher",
@@ -448,9 +424,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# TASK COMPLETION → NEXT TASK
-# =========================================================
+# loop to next task
 
 workflow.add_edge(
     "mark_current_task_complete",
@@ -458,9 +432,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# EVALUATOR ROUTING
-# =========================================================
+# evaluator conditional routing
 
 workflow.add_conditional_edges(
     "evaluator",
@@ -478,9 +450,7 @@ workflow.add_conditional_edges(
 )
 
 
-# =========================================================
-# EVALUATOR REVISION → WORKER
-# =========================================================
+# evaluator revision edge
 
 workflow.add_edge(
     "prepare_evaluator_revision",
@@ -488,9 +458,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# EVALUATION UNAVAILABLE → END
-# =========================================================
+# end if evaluation unavailable
 
 workflow.add_edge(
     "prepare_evaluation_unavailable",
@@ -498,9 +466,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# HUMAN APPROVAL PREPARATION → HUMAN
-# =========================================================
+# go to human approval node
 
 workflow.add_edge(
     "prepare_human_approval",
@@ -508,9 +474,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# HUMAN ROUTING
-# =========================================================
+# human routing conditional edge
 
 workflow.add_conditional_edges(
     "human",
@@ -528,9 +492,7 @@ workflow.add_conditional_edges(
 )
 
 
-# =========================================================
-# HUMAN REVISION → WORKER
-# =========================================================
+# human revision edge
 
 workflow.add_edge(
     "prepare_human_revision",
@@ -538,9 +500,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# REVISION → EVALUATOR
-# =========================================================
+# after revision evaluate again
 
 workflow.add_edge(
     "revision",
@@ -548,9 +508,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# FINALIZER
-# =========================================================
+# finalize and end
 
 workflow.add_edge(
     "finalizer",
@@ -558,9 +516,7 @@ workflow.add_edge(
 )
 
 
-# =========================================================
-# POSTGRESQL LANGGRAPH CHECKPOINTER
-# =========================================================
+# postgres checkpointer
 
 psycopg_url = get_psycopg_url()
 
@@ -577,9 +533,7 @@ checkpointer = PostgresSaver(
 )
 
 
-# =========================================================
-# COMPILE WORKFLOW
-# =========================================================
+# compile the workflow
 
 app = workflow.compile(
     checkpointer=checkpointer

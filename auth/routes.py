@@ -47,10 +47,7 @@ from services.email_service import (
 
 
 def mask_api_key(key: str | None) -> str | None:
-    """
-    Mask sensitive API keys for safe display to the client.
-    Example: 'AIzaSy...4x8A' or '••••••••'
-    """
+    # hide most of the key with dots
     if not key:
         return None
     cleaned = key.strip()
@@ -65,10 +62,7 @@ router = APIRouter(
 )
 
 
-# =========================
-# SIGNUP
-# =========================
-
+# signup
 @router.post(
     "/signup",
     response_model=AuthResponse,
@@ -139,10 +133,7 @@ def signup(
     )
 
 
-# =========================
-# LOGIN
-# =========================
-
+# login
 @router.post(
     "/login",
     response_model=AuthResponse
@@ -192,10 +183,7 @@ def login(
     )
 
 
-# =========================
-# GOOGLE OAUTH
-# =========================
-
+# google oauth
 @router.post(
     "/google",
     response_model=AuthResponse
@@ -296,10 +284,7 @@ def google_auth(
     )
 
 
-# =========================
-# FORGOT PASSWORD
-# =========================
-
+# forgot password
 @router.post(
     "/forgot-password",
     response_model=ForgotPasswordResponse
@@ -370,10 +355,7 @@ def forgot_password(
     )
 
 
-# =========================
-# RESET PASSWORD
-# =========================
-
+# reset password
 @router.post(
     "/reset-password",
     response_model=ResetPasswordResponse
@@ -433,9 +415,7 @@ def reset_password(
             new_password_hash
         )
 
-        # Invalidate the reset token
-        # at the same time as changing
-        # the password.
+        # invalidate old reset token
         user.reset_token_hash = None
 
         user.reset_token_expires_at = None
@@ -453,10 +433,7 @@ def reset_password(
     )
 
 
-# =========================
-# DELETE ACCOUNT
-# =========================
-
+# delete account
 @router.delete(
     "/account",
     response_model=DeleteAccountResponse
@@ -477,10 +454,7 @@ def delete_account(
     )
 
 
-# =========================
-# API KEYS & BYOK
-# =========================
-
+# api keys
 @router.get(
     "/api-keys",
     response_model=ApiKeysResponse
@@ -548,10 +522,7 @@ def update_api_keys(
     )
 
 
-# =========================
-# PROFILE MANAGEMENT
-# =========================
-
+# profile
 @router.get(
     "/me",
     response_model=UserProfileResponse

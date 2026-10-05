@@ -20,11 +20,7 @@ def _call_agent(
     api_key: str | None = None,
     **kwargs
 ):
-    """
-    Safely invoke an agent function with an optional api_key parameter
-    if accepted by its signature, preserving compatibility with tests
-    that monkeypatch agent functions with standard signatures.
-    """
+    # helper to pass api key if agent function accepts it
     try:
         sig = inspect.signature(agent_fn)
         if (

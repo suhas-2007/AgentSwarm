@@ -1,9 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 
 
-# =========================
-# SIGNUP
-# =========================
+# signup
 
 class SignupRequest(BaseModel):
 
@@ -26,9 +24,7 @@ class SignupRequest(BaseModel):
     )
 
 
-# =========================
-# LOGIN
-# =========================
+# login
 
 class LoginRequest(BaseModel):
 
@@ -62,9 +58,7 @@ class AuthResponse(BaseModel):
     avatar_url: str | None = None
 
 
-# =========================
-# GOOGLE OAUTH
-# =========================
+# google oauth
 
 class GoogleAuthRequest(BaseModel):
 
@@ -75,9 +69,7 @@ class GoogleAuthRequest(BaseModel):
     )
 
 
-# =========================
-# API KEYS & BYOK
-# =========================
+# api keys
 
 class ApiKeysResponse(BaseModel):
 
@@ -98,9 +90,7 @@ class UpdateApiKeysRequest(BaseModel):
     tavily_api_key: str | None = None
 
 
-# =========================
-# FORGOT PASSWORD
-# =========================
+# forgot password
 
 class ForgotPasswordRequest(BaseModel):
 
@@ -115,9 +105,7 @@ class ForgotPasswordResponse(BaseModel):
     message: str
 
 
-# =========================
-# RESET PASSWORD
-# =========================
+# reset password
 
 class ResetPasswordRequest(BaseModel):
 
@@ -140,18 +128,14 @@ class ResetPasswordResponse(BaseModel):
     message: str
 
 
-# =========================
-# DELETE ACCOUNT
-# =========================
+# delete account
 
 class DeleteAccountResponse(BaseModel):
 
     message: str
 
 
-# =========================
-# PROFILE
-# =========================
+# profile
 
 class UpdateProfileRequest(BaseModel):
 

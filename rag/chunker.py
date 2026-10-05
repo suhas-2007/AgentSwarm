@@ -4,9 +4,7 @@ import re
 def split_into_sentences(
     text: str
 ) -> list[str]:
-    """
-    Split text into individual sentences.
-    """
+    # split text by punctuation
 
     text = text.replace(
         "\n",
@@ -30,18 +28,7 @@ def chunk_text(
     chunk_size: int = 500,
     overlap: int = 100
 ) -> list[str]:
-    """
-    Combine complete sentences into chunks.
-
-    Each chunk targets approximately the configured
-    chunk_size in characters.
-
-    Approximately overlap characters of context are
-    retained between neighboring chunks when possible.
-
-    A sentence longer than chunk_size is kept intact
-    rather than being split.
-    """
+    # chunks text into groups of sentences with overlap
 
     if chunk_size <= 0:
 
@@ -82,8 +69,7 @@ def chunk_text(
             else 0
         )
 
-        # Add the sentence when the resulting
-        # chunk remains within the target size.
+        # fits in current chunk
         if (
             not current_sentences
             or current_length
@@ -103,15 +89,14 @@ def chunk_text(
 
             continue
 
-        # Save the current chunk.
+        # save current chunk
         chunks.append(
             " ".join(
                 current_sentences
             )
         )
 
-        # Find trailing sentences that provide
-        # approximately the requested overlap.
+        # carry over overlap sentences
         overlap_sentences = []
         overlap_length = 0
 
@@ -151,8 +136,7 @@ def chunk_text(
             if overlap_length >= overlap:
                 break
 
-        # Make sure the carried-over sentences plus
-        # the new sentence do not exceed chunk_size.
+        # trim overlap if too long
         while (
             overlap_sentences
             and (
@@ -189,7 +173,7 @@ def chunk_text(
 
             current_length -= 1
 
-        # Add the new sentence.
+        # add next sentence
         separator_length = (
             1
             if current_sentences
@@ -205,7 +189,7 @@ def chunk_text(
             + sentence_length
         )
 
-    # Store the final chunk.
+    # last chunk
     if current_sentences:
 
         chunks.append(

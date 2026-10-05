@@ -1,6 +1,6 @@
 # AgentSwarm
 
-## Multi-Agent Task Orchestration Engine
+## Multi-Agent Task Runner & Workflow System
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-AgentSwarm%20Web-00E599?style=for-the-badge&logo=render&logoColor=white)](https://agentswarm-web.onrender.com)
 [![API Status](https://img.shields.io/badge/Live%20API-FastAPI%20Swagger-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://agentswarm-api.onrender.com/docs)
@@ -14,24 +14,22 @@
 > 📚 **Interactive Swagger API Docs**: [https://agentswarm-api.onrender.com/docs](https://agentswarm-api.onrender.com/docs)  
 > 📖 **Interactive ReDoc**: [https://agentswarm-api.onrender.com/redoc](https://agentswarm-api.onrender.com/redoc)  
 
-AgentSwarm is a **stateful multi-agent AI platform** that decomposes user requests into smaller tasks and coordinates specialized AI agents to complete them.
+AgentSwarm is a full-stack multi-agent project I built to solve a problem I kept running into: single LLM prompts usually try to do way too much at once, get confused, hallucinate code, or just fail silently. 
 
-The system uses **LangGraph** to control the workflow, **FastAPI** for the backend API, **PostgreSQL** for persistence and checkpointing, and **React** for the frontend.
-
-Instead of relying on a single AI call, AgentSwarm separates planning, research, coding, content generation, evaluation, human review, and finalization into different stages.
+Instead of asking one model to plan, code, search the web, and verify everything in one shot, I built this system to break a goal into smaller bite-sized jobs. Each job gets routed to a specialized agent, saves its progress into a real PostgreSQL database through LangGraph, gets checked by a totally separate evaluator LLM, and finally asks you (the human) to give the thumbs up before finishing.
 
 ---
 
 ## What AgentSwarm Does
 
-A user provides a natural-language goal:
+Whenever you type in a prompt on the dashboard, like:
 
 ```text
 Build a Python implementation of a graph algorithm
 and explain its complexity.
-````
+```
 
-AgentSwarm then:
+Here is what happens behind the scenes:
 
 ```text
 User Request
@@ -90,56 +88,57 @@ flowchart TD
     Finalizer --> Output([Final Result & Artifacts])
 ```
 
-This ensures each stage focuses on its specialized domain with rigorous verification.
+Breaking down the workflow this way means the coder only writes code, the researcher only gathers live sources, and the evaluator gives an unbiased review.
 
 ---
 
 # Key Features
 
-* Multi-agent task planning
-* Specialized AI workers
-* Stateful LangGraph orchestration
-* Web research using Tavily
-* AI-powered code generation
-* Content and explanation generation
-* Independent output evaluation
-* Automatic bounded revision loop
-* Human-in-the-loop approval
-* PostgreSQL persistence
-* LangGraph PostgreSQL checkpointing
-* JWT authentication
-* User-specific task authorization
-* Task monitoring and management
-* Task stopping and deletion
-* Secure artifact storage
-* Artifact downloads
-* Secure task sharing
-* React workflow dashboard
-* Evaluator quota/error handling
-* Automated local workflow tests
+* Breaks down prompts into a sensible step-by-step plan
+* Specialized worker agents for coding, web research, and writing explanations
+* Workflow execution managed by LangGraph state machines
+* Live web searching powered by the Tavily API
+* Fast code generation on Groq running `openai/gpt-oss-120b`
+* Automatic content drafting and markdown formatting
+* Independent evaluation using Google Gemini (`gemini-3.6-flash`)
+* Built-in revision loops with a hard cap to stop infinite loops
+* Human-in-the-loop review where you can approve or send feedback to fix things
+* Real database persistence with PostgreSQL and SQLAlchemy
+* Resumable LangGraph checkpoints stored in Postgres tables
+* Secure user authentication with JWT tokens and bcrypt password hashing
+* Full user isolation so nobody can peek at or edit someone else's tasks
+* Live task status polling and step-by-step UI updates
+* Emergency task stop button that locks state in the database
+* File artifact generator that saves code files safely on disk
+* Direct browser downloads for generated code and output files
+* Public share links that only expose clean completed work
+* Interactive React dashboard built with Vite
+* Graceful fallback states if third-party LLM quotas run dry
+* Full 64-test automated suite written in Pytest
 
 ---
 
 # Architecture
 
-AgentSwarm is organized into several layers.
+I structured the project into clean layers so the frontend, backend APIs, graph execution, and database stay decoupled:
 
 ```text
 ┌─────────────────────────────────────────────────────┐
 │                    React Frontend                   │
 │        Dashboard • Workflow • Tasks • Artifacts     │
+│             (Vite + React 19 + Vanilla CSS)         │
 └──────────────────────────┬──────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────┐
 │                    FastAPI API                      │
-│   Authentication • Tasks • Approval • Artifacts    │
+│   Authentication • Tasks • Approval • Artifacts     │
 └──────────────────────────┬──────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────┐
 │                  Task Runner                        │
-│          Background Task Execution                  │
+│          Background Task Execution Thread           │
 └──────────────────────────┬──────────────────────────┘
                            │
                            ▼
@@ -174,31 +173,24 @@ AgentSwarm is organized into several layers.
 
 ## Planner
 
-The Planner receives the user's goal and creates a structured execution plan.
+When you type a goal, the Planner is the very first agent to wake up. It parses your prompt and outputs a clean JSON array of subtasks.
 
-It determines:
+It decides:
 
-* What tasks need to be performed
-* Which agent should perform each task
-* The task type
-* Task dependencies
+* What exact tasks need to be completed
+* Which agent is best suited for each step
+* The task category (research, coding, content, questions)
+* What order they should run in
 
-Supported worker types include:
-
-* Research
-* Coding
-* Content
-* Questions
-
-The generated plan is validated before execution.
+I wrote strict prompt rules so the planner never invents evaluator or finalizer tasks on its own, because the workflow handles those automatically.
 
 ---
 
 ## Researcher
 
-The Researcher performs external web research using **Tavily**.
+Whenever a task needs up-to-date documentation, real-world data, or facts, the Planner calls the Researcher.
 
-Its output provides research evidence that can be used by downstream agents.
+It uses the **Tavily Search API** to look up queries on the live web, extracts the most relevant snippets, and puts them into the shared workflow state so the coder or writer can read them.
 
 ```text
 Research Task
@@ -214,39 +206,33 @@ Research Evidence
 
 ## Coder
 
-The Coder handles implementation tasks.
+The Coder is responsible for generating working software. It runs on Groq using `openai/gpt-oss-120b` so it writes code in seconds.
 
-It receives:
+It takes in:
 
-* User goal
-* Current task
-* Research
-* Previous evaluator feedback
-* Human feedback
+* Your original goal
+* The specific task description from the plan
+* Any research notes gathered by the Researcher
+* Any criticism from the Evaluator (if it's a revision)
+* Any notes you typed during human review
 
-During revisions, it uses the available feedback to improve the implementation while preserving work that is already correct.
-
-Coding results can also be stored as downloadable artifacts.
+Whenever the Coder finishes, its code gets saved both in the state and as a standalone file in the `artifacts/generated/` folder.
 
 ---
 
 ## Content Agent
 
-The Content Agent handles tasks such as:
+Not everything is code. When you ask for explanations, study guides, comparisons, or summaries, the Content agent takes over.
 
-* Explanations
-* Summaries
-* Written content
-* Questions
-* Supporting documentation
+It produces clean GitHub-flavored markdown with headers, bullet points, and code snippets where needed.
 
 ---
 
 ## Evaluator
 
-The Evaluator independently reviews worker output.
+This is one of the most important parts of the project. If you let an LLM grade its own homework, it almost always says "everything looks great!" even when there are obvious bugs.
 
-AgentSwarm separates the generation and evaluation models:
+To fix that, I split the models:
 
 ```text
 Worker Agents
@@ -261,19 +247,18 @@ Evaluator
 Gemini: gemini-3.6-flash
 ```
 
-The Evaluator can determine whether the result should pass or be revised.
+The Evaluator inspects the code or content against your goal and against local reference docs using RAG. It then outputs either `VERDICT: PASS` or `VERDICT: REVISE` with clear bullet points explaining what needs fixing.
 
 ---
 
 ## Human Review
 
-After automated evaluation, the workflow can pause for human approval.
+Even with automated evaluation, having a human in the loop makes a huge difference. When the Evaluator gives a PASS verdict, LangGraph pauses the execution using an interrupt.
 
-The user can:
+In the React UI, you'll see an approval card with two buttons:
 
-* Approve the result
-* Reject the result
-* Provide feedback for revision
+* **Approve & Finalize**: moves the task to the Finalizer
+* **Ask for Changes**: lets you type custom feedback (e.g. "make the function async" or "add input validation") and sends it back to the worker
 
 ```text
 Evaluator
@@ -295,23 +280,13 @@ Finalizer   Revision
 
 ## Finalizer
 
-The Finalizer produces the final user-facing response after the required workflow stages have completed.
-
-It uses the available:
-
-* Research
-* Generated content
-* Code
-* Evaluation
-* User goal
-
-Approved implementations are preserved rather than unnecessarily rewritten.
+Once everything is approved, the Finalizer agent bundles the pieces together into the finished answer you see on your screen. It leaves working code intact and writes a concise final wrap-up.
 
 ---
 
 # Revision System
 
-AgentSwarm supports a bounded revision loop.
+To make sure tasks don't get stuck in a loop forever burning through API credits, I put a strict limit on revisions (`MAX_REVISIONS = 2`).
 
 ```text
              ┌─────────────┐
@@ -334,17 +309,15 @@ AgentSwarm supports a bounded revision loop.
                         Evaluator
 ```
 
-The number of automatic revisions is limited to prevent infinite workflow loops.
-
-Human rejection can also trigger a bounded revision.
+If the Evaluator asks for revisions more than 2 times, the workflow stops retrying and automatically surfaces the current best output to the human review step so you can decide what to do.
 
 ---
 
 # Stateful Workflow
 
-LangGraph maintains a shared `AgentState` throughout execution.
+LangGraph passes a shared `AgentState` dictionary from node to node throughout the whole run.
 
-The state contains information including:
+Here is what's inside the state:
 
 ```text
 User Goal
@@ -364,36 +337,30 @@ Final Answer
 Workflow Status
 ```
 
-This allows different agents to work on the same evolving task context.
+Because every node updates this state dictionary, agents always know what previous workers did without losing context.
 
 ---
 
 # Persistence
 
-AgentSwarm uses **PostgreSQL** for application data and LangGraph checkpointing.
+Everything in AgentSwarm is backed by **PostgreSQL**. I used SQLAlchemy for the application tables and LangGraph's official `PostgresSaver` for graph checkpoints.
 
-Persistent information includes:
+Saved information includes:
 
-* User accounts
-* Tasks
-* Task status
-* Plans
-* Research
-* Generated code
-* Generated content
-* Evaluations
-* Revision information
-* Human feedback
+* User accounts & hashed passwords
+* Tasks and their real-time statuses
+* Generated plans, research, code, and content
+* Evaluator reviews and human feedback history
 * Final answers
-* Task sharing information
+* Share tokens and file paths
 
-The workflow state can therefore be persisted instead of existing only during a single process execution.
+If your server restarts or a worker finishes a step, the entire workflow can be resumed right from the last checkpoint.
 
 ---
 
 # Artifact System
 
-Generated implementation files are stored separately from the workflow state.
+When the coder writes files, I don't just dump them into a database string. They get written as actual files inside an artifacts folder:
 
 ```text
 artifacts/
@@ -403,57 +370,48 @@ artifacts/
         └── task_<id>_revision_<n>_code.txt
 ```
 
-The artifact manager provides:
+My artifact manager helper handles:
 
-* Task-specific storage
-* Filename validation
-* Path traversal protection
-* Maximum artifact size limits
-* Artifact listing
-* Artifact downloading
-* Artifact deletion
-
-Artifacts are associated with individual tasks and protected by task ownership checks.
+* Keeping files neatly grouped by task ID
+* Sanitizing filenames so nobody can do path traversal tricks (`../`)
+* Setting a 5 MB file size limit so disks don't fill up
+* Listing and serving files securely through FastAPI's `FileResponse`
+* Deleting files when a user deletes their task
 
 ---
 
-# Authentication
+# Authentication & BYOK
 
-AgentSwarm uses JWT-based authentication.
+I built full JWT-based authentication for the app:
 
-Supported functionality:
+* Signup and login with email & password
+* 60-minute JWT bearer tokens stored in localStorage
+* Password resets with expiring tokens sent via email
+* Optional Google Sign-In using Google Identity Services (OAuth JWTs)
+* **Bring Your Own Key (BYOK)**: If shared server credits run low, users can click the key icon in the dashboard and save their personal Gemini, Groq, or Tavily keys. The backend masks the keys (`••••••••`) and uses them for that user's tasks.
 
-* User signup
-* User login
-* JWT access tokens
-* Protected API endpoints
-* Password reset
-* Account deletion
-
-Task operations verify that the authenticated user owns the requested task.
+Every task endpoint checks `task.user_id == current_user.id`, so users can never see or modify each other's tasks.
 
 ---
 
 # Task Management
 
-Users can:
+From the dashboard, you can:
 
-* Create tasks
-* View tasks
-* Monitor task status
-* Stop running tasks
-* Approve or reject tasks
-* Provide revision feedback
-* View generated artifacts
-* Download artifacts
-* Share completed tasks
-* Delete terminal tasks
+* Type a new goal and watch agents run in real time
+* See the live status change (Planning, Coding, Evaluating, etc.)
+* Click "Stop Task" if you change your mind mid-run
+* Review the evaluator's critique
+* Approve or send back revisions with custom notes
+* Preview and download generated code artifacts
+* Generate a public share link for completed tasks
+* Delete finished or stopped tasks from your history
 
 ---
 
 # Task States
 
-Tasks can move through states such as:
+Tasks move through a well-defined state machine:
 
 ```text
 STARTING
@@ -470,140 +428,112 @@ REVISING     WAITING_FOR_HUMAN
    │          │         │
    │       APPROVE    REJECT
    │          │         │
+   │       FINALIZING   │
+   │          │         │
    └──────────┼─────────┘
-              │
-              ▼
-          FINALIZER
               │
               ▼
           COMPLETED
 ```
 
-Other terminal states include:
+Terminal states include:
 
 ```text
+COMPLETED
 FAILED
 STOPPED
 EVALUATION_UNAVAILABLE
 ```
 
-Terminal-state protection prevents stopped tasks from being accidentally overwritten during later synchronization.
+I added a database guard (`UPDATE tasks WHERE status != 'STOPPED'`) so that if a user clicks Stop, any late background worker response gets safely dropped instead of accidentally flipping the task back to running.
 
 ---
 
 # External Services
 
 ## Groq
-
-Used by the primary worker agents:
-
-```text
-openai/gpt-oss-120b
-```
-
-Used for:
-
-* Planning
-* Research-related generation
-* Coding
-* Content generation
-* Finalization
-
----
+Runs the primary workers (Planner, Coder, Content, Finalizer) using `openai/gpt-oss-120b`. Groq's inference speeds make multi-step agent interactions feel responsive instead of taking minutes.
 
 ## Google Gemini
-
-Used by the Evaluator:
-
-```text
-gemini-3.6-flash
-```
-
-Using a separate model for evaluation provides model diversity between generation and verification.
-
----
+Runs the Evaluator using `gemini-3.6-flash`. Using a different LLM family prevents the evaluator from having the exact same blind spots as the coder.
 
 ## Tavily
-
-Used by the Researcher for web search and external information gathering.
-
----
-
-# RAG Support
-
-The Evaluator can retrieve relevant information from the project's document knowledge base before evaluating generated output.
-
-This provides additional context for evaluation instead of relying only on the worker's response.
+Used by the Researcher agent. Unlike standard search APIs that return messy HTML or ad links, Tavily returns clean markdown summaries ready for LLMs to read.
 
 ---
 
-# Evaluator Failure Handling
+# RAG Knowledge Base
 
-External AI services can become unavailable because of:
+I set up a local ChromaDB vector store in `rag/` to give the Evaluator extra context. 
 
-* API quotas
-* Rate limits
-* Temporary service failures
+Reference guidelines and documentation are chunked into 500-character segments with 100-character overlap. When checking a piece of code, the evaluator pulls relevant reference chunks to compare against ground truth standards before deciding on a verdict.
 
-AgentSwarm distinguishes evaluator failure from successful evaluation.
+---
 
-For example:
+# Handling Quota & API Errors
+
+External APIs can occasionally fail due to rate limits (HTTP 429) or temporary outages (503). 
+
+Instead of crashing the backend or falsely passing unverified code, AgentSwarm catches these errors and marks the task as:
 
 ```text
 EVALUATION_UNAVAILABLE
 ```
 
-means that the worker output could not be verified by the Evaluator.
-
-The workflow does **not** treat an unavailable evaluator as a successful evaluation.
+The UI displays an informative alert explaining that the evaluator quota was reached, so you know the code wasn't verified rather than thinking it passed inspection.
 
 ---
 
-# API
+# API Endpoints
 
-| Method   | Endpoint                           | Purpose                |
+| Method   | Endpoint                           | What it does           |
 | -------- | ---------------------------------- | ---------------------- |
-| `GET`    | `/health`                          | Health check           |
-| `POST`   | `/auth/signup`                     | Create account         |
-| `POST`   | `/auth/login`                      | Login                  |
-| `POST`   | `/auth/forgot-password`            | Request password reset |
-| `POST`   | `/auth/reset-password`             | Reset password         |
-| `DELETE` | `/auth/account`                    | Delete account         |
-| `POST`   | `/tasks`                           | Create task            |
-| `GET`    | `/tasks`                           | List user's tasks      |
-| `GET`    | `/tasks/{id}`                      | Get task               |
-| `POST`   | `/tasks/{id}/stop`                 | Stop task              |
-| `POST`   | `/tasks/{id}/approval`             | Approve/reject task    |
-| `GET`    | `/tasks/{id}/artifacts`            | List artifacts         |
-| `GET`    | `/tasks/{id}/artifacts/{filename}` | Download artifact      |
-| `POST`   | `/tasks/{id}/share`                | Create share token     |
-| `GET`    | `/share/{token}`                   | View shared task       |
-| `DELETE` | `/tasks/{id}`                      | Delete task            |
+| `GET`    | `/health`                          | Quick health check     |
+| `POST`   | `/auth/signup`                     | Register a new account |
+| `POST`   | `/auth/login`                      | Login and get JWT      |
+| `POST`   | `/auth/google`                     | Google OAuth login     |
+| `GET`    | `/auth/api-keys`                   | View configured keys   |
+| `POST`   | `/auth/api-keys`                   | Save personal API keys |
+| `POST`   | `/auth/forgot-password`            | Request reset email    |
+| `POST`   | `/auth/reset-password`             | Set new password       |
+| `GET`    | `/auth/me`                         | Get current user info  |
+| `PATCH`  | `/auth/profile`                    | Update profile name    |
+| `DELETE` | `/auth/account`                    | Delete account & data  |
+| `POST`   | `/tasks`                           | Submit a new task      |
+| `GET`    | `/tasks`                           | List your task history |
+| `GET`    | `/tasks/{id}`                      | Get single task status |
+| `POST`   | `/tasks/{id}/stop`                 | Stop a running task    |
+| `POST`   | `/tasks/{id}/approval`             | Approve or reject task |
+| `GET`    | `/tasks/{id}/artifacts`            | List task files        |
+| `GET`    | `/tasks/{id}/artifacts/{filename}` | Download a file        |
+| `POST`   | `/tasks/{id}/share`                | Create share link      |
+| `GET`    | `/share/{token}`                   | View public task       |
+| `DELETE` | `/tasks/{id}`                      | Delete a task          |
 
-FastAPI provides interactive API documentation at:
-
+FastAPI automatically serves interactive Swagger docs at:
 ```text
 http://localhost:8000/docs
 ```
 
 ---
 
-# Technology Stack
+# Tech Stack
 
-| Layer           | Technology                   |
+| Part            | Technology                   |
 | --------------- | ---------------------------- |
-| Frontend        | React, Vite, JavaScript, CSS |
-| Backend         | Python, FastAPI              |
-| Orchestration   | LangGraph                    |
-| AI Framework    | LangChain                    |
-| Worker Model    | Groq `openai/gpt-oss-120b`   |
-| Evaluator Model | Gemini `gemini-3.6-flash`    |
-| Web Research    | Tavily                       |
-| Database        | PostgreSQL                   |
-| ORM             | SQLAlchemy                   |
-| Database Driver | Psycopg                      |
-| Validation      | Pydantic                     |
-| Authentication  | JWT                          |
+| Frontend        | React 19, Vite, Lucide Icons |
+| Styling         | Custom Vanilla CSS           |
+| Backend         | Python 3.11+, FastAPI        |
+| Server          | Uvicorn                      |
+| Orchestration   | LangGraph, LangChain         |
+| Primary LLM     | Groq `openai/gpt-oss-120b`   |
+| Evaluator LLM   | Gemini `gemini-3.6-flash`    |
+| Web Search      | Tavily API                   |
+| Database        | PostgreSQL with SQLAlchemy   |
+| Checkpointing   | Psycopg3 + PostgresSaver     |
+| Data Validation | Pydantic v2                  |
+| Auth            | JWT + Passlib / Bcrypt       |
+| Vector Store    | ChromaDB                     |
 
 ---
 
@@ -611,305 +541,217 @@ http://localhost:8000/docs
 
 ```text
 AgentSwarm/
-│
-├── agents/
-│   ├── planner.py
-│   ├── researcher.py
-│   ├── coder.py
-│   ├── content.py
-│   ├── evaluator.py
-│   └── finalizer.py
-│
-├── api/
-│   ├── api.py
-│   └── schemas.py
-│
-├── artifacts/
-│   ├── __init__.py
-│   └── manager.py
-│
-├── auth/
-│   ├── dependencies.py
-│   ├── routes.py
-│   └── security.py
-│
-├── database/
-│   ├── connection.py
-│   └── models.py
-│
-├── graph/
-│   ├── human.py
-│   ├── nodes.py
-│   ├── state.py
-│   └── workflow.py
-│
-├── services/
-│   └── task_runner.py
-│
-├── tools/
-│   └── web_search.py
-│
-├── tests/
-│   ├── test_artifacts_local.py
-│   ├── test_task_sync.py
-│   └── test_workflow_routing.py
-│
-├── frontend/
-│   └── ...
-│
-├── .env
-├── .gitignore
-├── requirements.txt
-└── README.md
+├── agents/             # Worker code (planner, coder, researcher, content, evaluator, finalizer)
+├── api/                # FastAPI app, route handlers, and Pydantic schemas
+├── artifacts/          # Local file manager for saving and downloading code files
+├── auth/               # Password hashing, JWT dependencies, and auth routes
+├── database/           # SQLAlchemy database models and connection engine
+├── frontend/           # React single-page app
+│   ├── src/
+│   │   ├── components/ # Modals (API keys, name prompt, Google button)
+│   │   ├── pages/      # Dashboard, Login, Signup, ResetPassword, SharedTask
+│   │   └── config.js   # API URL configuration
+├── graph/              # LangGraph workflow, nodes, shared state, and approval interrupts
+├── rag/                # Document chunker, embedding search, and ChromaDB helpers
+├── services/           # Status transitions, background task runner, and email sender
+├── tests/              # Pytest test suite covering all APIs and graph logic
+├── main.py             # Simple CLI runner for testing locally
+└── requirements.txt    # Python dependencies
 ```
 
 ---
 
-# Environment Variables
+# Setting Up Locally
 
-Create a `.env` file in the project root:
+### 1. Prerequisites
+Make sure you have:
+- Python 3.11 or newer
+- Node.js (v18+) and npm
+- PostgreSQL running locally or a free database from Neon or Supabase
 
-```env
-GROQ_API_KEY=your_groq_api_key
-GEMINI_API_KEY=your_gemini_api_key
-TAVILY_API_KEY=your_tavily_api_key
-DATABASE_URL=your_postgresql_connection_string
-SECRET_KEY=your_jwt_secret
-```
-
-Replace the placeholder values with your actual credentials.
-
-**Never commit `.env` to Git.**
-
-The repository ignores:
-
-```gitignore
-venv/
-.env
-__pycache__/
-*.pyc
-```
-
----
-
-# Installation
-
-## 1. Clone the Repository
-
+### 2. Clone the repo
 ```bash
 git clone https://github.com/suhas-2007/AgentSwarm.git
 cd AgentSwarm
 ```
 
-## 2. Create a Virtual Environment
-
+### 3. Setup Python virtual environment
 ```powershell
+# On Windows
 python -m venv venv
+.\venv\Scripts\activate
+
+# On Linux or Mac
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-## 3. Install Backend Dependencies
-
-```powershell
+Install backend packages:
+```bash
 pip install -r requirements.txt
 ```
 
-## 4. Configure Environment Variables
+### 4. Create your `.env` file
+Make a copy of `.env.example`:
 
-Create `.env` and configure:
-
-```text
-GROQ_API_KEY
-GEMINI_API_KEY
-TAVILY_API_KEY
-DATABASE_URL
-SECRET_KEY
+```env
+GROQ_API_KEY=your_groq_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+TAVILY_API_KEY=your_tavily_api_key_here
+DATABASE_URL=postgresql://postgres:password@localhost:5432/agentswarm
+JWT_SECRET_KEY=use_a_long_random_secret_string
+FRONTEND_URL=http://localhost:5173
 ```
 
-## 5. Start the Backend
-
+### 5. Start the backend
 ```powershell
-.\venv\Scripts\python.exe -m uvicorn api.api:app --reload
+python -m uvicorn api.api:app --reload --port 8000
 ```
+FastAPI will start up at `http://127.0.0.1:8000`. You can test it by going to `http://127.0.0.1:8000/health`.
 
-## 6. Start the Frontend
-
-Open another terminal:
+### 6. Start the frontend
+Open a second terminal window:
 
 ```powershell
 cd frontend
 npm install
-npm.cmd run dev
+npm run dev
 ```
+Open `http://localhost:5173` in your browser.
 
 ---
 
-# Automated Test Suite
+# Automated Tests
 
-AgentSwarm maintains a rigorous **64-test automated test suite** with 100% pass rate, covering every workflow permutation, edge case, and security boundary.
+I put together a test suite with 64 automated tests covering all edge cases, workflow routes, and security checks.
 
-### Running the Test Suite
+### Running the tests
 
 ```powershell
-# Run the complete test suite with verbose output
-$env:PYTHONPATH = "C:\Users\suhas\OneDrive\Desktop\AgentSwarm"
-.\venv\Scripts\pytest.exe -v
+# Set PYTHONPATH to project root and run pytest
+$env:PYTHONPATH = "."
+pytest -v
 ```
 
-### Test Coverage Breakdown
+### What the tests cover
 
-| Category | Test File | Description | Count |
-| :--- | :--- | :--- | :--- |
-| **Workflow Routing** | `test_workflow_routing.py` | Validates task router dispatching to Researcher, Coder, Evaluator, and proper conditional routing. | 13 |
-| **Edge Cases & Failure Recovery** | `test_workflow_edge_cases.py` | Worker failures $\rightarrow$ `FAILED`, user stop protection against overwriting, evaluator unavailable routing, human reject loop, max revisions. | 8 |
-| **Security & Task Isolation** | `test_security_api.py` | Cross-user task isolation (404), unauthenticated blocking, share token sanitization, and auth password validation. | 3 |
-| **Human-in-the-Loop Review** | `test_task_approval_api.py` | Human approval flow, rejection with mandatory feedback, rejection without feedback validation (400). | 3 |
-| **Revision & Limits** | `test_revision_limit.py`, `test_revision.py` | Evaluator max revision caps (`MAX_REVISIONS = 2`), human rejection limit routing to `END`, revision counter increments. | 3 |
-| **Task Synchronization & Stop** | `test_task_sync.py` | State synchronization from checkpoints, terminal state protection, partial state preservation. | 5 |
-| **Planner Decomposition** | `test_planner.py` | Verifies plan decomposition for coding, research, content, and restricts invalid task agents. | 7 |
-| **RAG Knowledge Base** | `test_rag.py` | Document chunking, ChromaDB vector collection reset, document retrieval, and metadata preservation. | 4 |
-| **Task Lifecycle & Workflow APIs**| `test_tasks_api.py`, `test_tasks_workflow_api.py` | API validation, task submission, background runner invocation, and status transitions. | 5 |
-| **Persistence & Checkpoints** | `test_checkpoint.py`, `test_checkpoint_persistence.py` | PostgreSQL checkpointer integration, snapshot recovery, and thread-specific states. | 3 |
-| **Full End-to-End Workflows** | `test_full_workflow.py`, `test_full_revision.py` | Multi-step end-to-end execution from Planner $\rightarrow$ Worker $\rightarrow$ Evaluator $\rightarrow$ Revision $\rightarrow$ Approval $\rightarrow$ Finalizer. | 10 |
+| Test File | What it checks | Tests |
+| :--- | :--- | :--- |
+| `test_workflow_routing.py` | Checks that tasks route properly to researcher, coder, or content, and handles PASS/REVISE verdicts | 13 |
+| `test_workflow_edge_cases.py` | Tests worker error handling, user stop safeguards, and evaluator fallback states | 8 |
+| `test_security_api.py` | Makes sure users can't access each other's tasks, tests share token sanitization, and checks password strength | 6 |
+| `test_task_approval_api.py` | Tests human approval flow and verifies that rejections require non-empty feedback | 3 |
+| `test_revision_limit.py`, `test_revision.py` | Makes sure revisions stop after 2 tries and don't loop forever | 3 |
+| `test_task_sync.py` | Tests syncing state between LangGraph and PostgreSQL without overwriting stopped tasks | 5 |
+| `test_planner.py` | Verifies the planner decomposes prompts into valid subtasks and rejects invalid agents | 7 |
+| `test_rag.py` | Tests sentence chunking, ChromaDB vector queries, and metadata preservation | 4 |
+| `test_tasks_api.py`, `test_tasks_workflow_api.py` | Tests the REST endpoints, background runner, and lifecycle transitions | 5 |
+| `test_checkpoint.py`, `test_checkpoint_persistence.py` | Verifies LangGraph's PostgreSQL checkpointer and state resumption | 3 |
+| `test_full_workflow.py`, `test_full_revision.py` | End-to-end multi-step runs from user prompt all the way to finalizer | 10 |
 
 ---
 
-# Execution Walkthroughs
+# Step-by-Step Workflow Scenarios
 
-AgentSwarm is designed to handle complex, branching multi-agent lifecycles with deterministic controls. Below are 3 real-world execution traces:
+Here are 3 actual walkthroughs showing how different prompts execute:
 
-### Scenario 1: Clean Coding Task (Passes on First Try)
+### Scenario 1: Straightforward Coding Task
 
-**Goal**: *"Write an efficient Python function to detect cycles in a directed graph using Kahn's topological sort."*
+**Prompt**: *"Write an efficient Python function to detect cycles in a directed graph using Kahn's topological sort."*
 
 ```text
-[1. START]      User submits goal via POST /tasks
+[1. START]      You submit the prompt in the dashboard
                  └── Task #101 created with status: STARTING
-[2. PLANNER]    Planner decomposes goal into structured plan:
+[2. PLANNER]    Planner generates a 1-step plan:
                  └── Task 1: "coder" - Implement Kahn's cycle detection algorithm
-[3. WORKER]     Coder generates cycle detection Python module with unit tests & docstrings
-                 └── Output saved to artifacts/generated/101/task_101_code.txt
-                 └── Status transitions: CODING → EVALUATING
-[4. EVALUATOR]  Evaluator checks correctness, algorithmic complexity (O(V+E)), and formatting:
+[3. WORKER]     Coder generates Python code with edge case checks and docstrings
+                 └── File saved to artifacts/generated/101/task_101_code.txt
+                 └── Status moves from CODING to EVALUATING
+[4. EVALUATOR]  Gemini checks the code for logic errors, time complexity O(V+E), and formatting:
                  └── Evaluator outputs: "VERDICT: PASS - Kahn's algorithm correctly tracks in-degrees"
-                 └── Status transitions: EVALUATING → WAITING_FOR_HUMAN
-[5. HITL REVIEW] User inspects result in React Dashboard, reviews code, and clicks "Approve & Finalize":
-                 └── POST /tasks/101/approval with {"approved": true}
-[6. FINALIZER]  Finalizer packages solution with markdown explanation and complexity summary
-                 └── Final status: COMPLETED (Revision count: 0)
+                 └── Status moves from EVALUATING to WAITING_FOR_HUMAN
+[5. REVIEW]     You review the code in the dashboard and click "Approve & Finalize"
+                 └── Backend receives: POST /tasks/101/approval {"approved": true}
+[6. FINALIZER]  Finalizer prepares the markdown explanation and marks the task COMPLETED
 ```
 
 ---
 
-### Scenario 2: Research & Content Task with Human Rejection & Revision
+### Scenario 2: Research with Human Feedback & Revision
 
-**Goal**: *"Research quantum computing breakthroughs in 2024 and write an executive summary for non-technical leadership."*
+**Prompt**: *"Research quantum computing breakthroughs in 2024 and write an executive summary for non-technical leadership."*
 
 ```text
-[1. START]      User submits goal via POST /tasks
-[2. PLANNER]    Planner creates two-phase plan:
+[1. START]      You submit the prompt
+[2. PLANNER]    Planner creates two tasks:
                  └── Task 1: "researcher" - Query Tavily for 2024 quantum announcements
                  └── Task 2: "content" - Draft executive summary using research findings
-[3. WORKER 1]   Researcher queries Tavily for recent neutral atom and fault-tolerant quantum milestones
-                 └── Research findings compiled into structured state
-[4. WORKER 2]   Content agent writes initial executive summary
-[5. EVALUATOR]  Evaluator verifies factual consistency: "VERDICT: PASS"
-                 └── Status transitions to WAITING_FOR_HUMAN
-[6. HITL REVIEW] User reviews draft but needs a financial implications section:
-                 └── User enters feedback: "Include estimated commercial timeline and market impact"
-                 └── User clicks "Ask for improvements" (Reject)
-                 └── Status transitions to REVISING (Revision count: 1/2)
-[7. REVISION]   Content worker re-invoked with user feedback:
-                 └── Injects section on commercial timeline (2028-2030) and enterprise risk
-[8. EVALUATOR]  Evaluator re-evaluates updated draft: "VERDICT: PASS"
-[9. HITL REVIEW] User reviews revised draft and clicks "Approve & Finalize"
-[10. FINALIZER] Final answer assembled and presented to user. Status: COMPLETED.
+[3. RESEARCHER] Queries Tavily for neutral atom and fault-tolerant quantum milestones
+                 └── Gathers findings into shared workflow state
+[4. CONTENT]    Writes the initial executive summary draft
+[5. EVALUATOR]  Gemini reviews facts and confirms accuracy: "VERDICT: PASS"
+                 └── Status moves to WAITING_FOR_HUMAN
+[6. REVIEW]     You read the draft but want to know more about commercial timelines:
+                 └── You type: "Include estimated commercial timeline and market impact"
+                 └── You click "Ask for changes" (Reject)
+                 └── Status moves to REVISING (Revision count: 1/2)
+[7. REVISION]   Content worker runs again with your notes:
+                 └── Adds dedicated sections covering 2028-2030 commercial estimates
+[8. EVALUATOR]  Gemini checks the updated draft: "VERDICT: PASS"
+[9. REVIEW]     You review the updated version and click "Approve & Finalize"
+[10. FINALIZER] Final answer assembled and displayed. Status: COMPLETED.
 ```
 
 ---
 
-### Scenario 3: Task Interruption & User Stop Safeguard
+### Scenario 3: Stopping a Task Mid-Run
 
-**Goal**: *"Generate a comprehensive 100-page market analysis of renewable energy in South America."*
+**Prompt**: *"Generate a comprehensive 100-page market analysis of renewable energy in South America."*
 
 ```text
-[1. START]      User submits goal via POST /tasks
-[2. RUNNING]    Planner creates extensive plan; Researcher starts long-running web searches
-[3. USER STOP]  User realizes prompt was overly broad and clicks "Stop Task" in Dashboard
-                 └── API executes: POST /tasks/105/stop
-                 └── Database updates Task #105 atomically: status = "STOPPED", current_task_id = null
-[4. SAFEGUARD]  The background TaskRunner thread attempts to sync checkpoint state:
-                 └── sync_task_from_state executes: UPDATE tasks WHERE id=105 AND status != 'STOPPED'
-                 └── Row count = 0: STOPPED status is completely immune to being overwritten!
-[5. TERMINAL]   Task remains safely in STOPPED state; user can delete or resubmit without data corruption.
+[1. START]      You submit the prompt
+[2. RUNNING]    Planner creates tasks and Researcher starts making web queries
+[3. USER STOP]  You realize the prompt is too broad and click "Stop Task" on the dashboard
+                 └── API calls: POST /tasks/105/stop
+                 └── Postgres updates Task #105: status = "STOPPED", current_task_id = null
+[4. GUARD]      When the background thread finishes its current step and calls sync:
+                 └── Query runs: UPDATE tasks WHERE id=105 AND status != 'STOPPED'
+                 └── 0 rows affected: the STOPPED status is never overwritten!
+[5. CLEANUP]    Task stays STOPPED cleanly without corrupting state or leaving ghost processes.
 ```
 
 ---
 
-# RAG Knowledge Base & Evaluator Architecture
+# Security & Data Isolation
 
-AgentSwarm uses an **isolated multi-model architecture** to ensure objective evaluation:
+Here are the safety checks I implemented across the application:
 
-* **Generation Engine**: High-throughput open weights via Groq (`openai/gpt-oss-120b`).
-* **Evaluation Engine**: Multimodal reasoner via Google Gemini (`gemini-3.6-flash`).
-
-### Evaluation Workflow
-
-```text
-Worker Output + Ground Truth Docs
-              │
-              ▼
-   ChromaDB Vector Retrieval
-              │
-              ▼
-   Gemini 3.6 Flash Evaluator
-              │
-    ┌─────────┴─────────┐
-    ▼                   ▼
-VERDICT: PASS       VERDICT: REVISE
-```
-
-1. **Document Ingestion**: Reference files and project documents are chunked (500 characters, 50 overlap) and indexed in ChromaDB.
-2. **Context Retrieval**: When evaluating worker outputs, the Evaluator queries the vector store for authoritative guidelines and reference implementations.
-3. **Structured Verdict**: The Evaluator outputs either `VERDICT: PASS` or `VERDICT: REVISE` with targeted feedback.
-4. **Quota Resilience (`EVALUATION_UNAVAILABLE`)**: If external API rate limits or quota boundaries are encountered (HTTP 429/503), AgentSwarm traps the error and marks the status as `EVALUATION_UNAVAILABLE` rather than falsely passing unverified output.
+* **User task isolation**: Every private route verifies `task.user_id == current_user.id`. If someone tries guessing another user's task ID in the URL, they get a clean `404 Not Found` so they cannot even know if that task exists.
+* **Sanitized share tokens**: Public sharing (`/share/{token}`) only works for tasks in `COMPLETED` status. If someone tries sharing a running or failed task, they get a 403. Also, shared responses strip out user IDs, emails, and internal state.
+* **Password policy**: Enforces at least 8 characters, hashes passwords with bcrypt, and reset tokens expire after 15 minutes.
+* **Path traversal prevention**: Filenames are validated with strict regex patterns before any file write. Traversal patterns like `../` or absolute paths are blocked immediately.
 
 ---
 
-# Security & Isolation Hardening
+# Production Deployment Notes
 
-AgentSwarm implements defense-in-depth across API, database, and file system boundaries:
-
-* **Strict Task Isolation**: Every private endpoint enforces `Task.user_id == current_user.id`. Requests targeting another user's task ID return `404 Not Found` to prevent resource enumeration.
-* **Share Token Sanitization**: Public task sharing (`/share/{token}`) is restricted strictly to `COMPLETED` tasks. Non-completed tasks return `403 Forbidden`. The response only exposes public fields (`task_id`, `goal`, `status`, `evaluation`, `final_answer`, `revision_count`), never leaking user emails, user IDs, or internal checkpoint metadata.
-* **Password & Token Security**: Passwords enforce a minimum 8-character policy. Password reset tokens are generated using cryptographically secure random bytes (`secrets.token_urlsafe`), and only SHA-256 hashes are stored in PostgreSQL with time-based expiration (`reset_token_expires_at`).
-* **Artifact Path Traversal Protection**: Filenames are validated against directory traversal attacks (`..`, absolute paths, illegal characters). Artifacts are strictly quarantined within per-task directories (`artifacts/generated/<task_id>/`).
-
----
-
-# Production Deployment Guide
-
-### Environment Configuration
-
-AgentSwarm requires standard environment variables. Copy the template and fill in your credentials:
+### Environment Template
+Create `.env` using your real server credentials:
 
 ```powershell
 copy .env.example .env
 ```
 
-> [!IMPORTANT]
-> Never commit your `.env` file or hardcode actual API keys into source files. All configuration is loaded dynamically via `python-dotenv`. In production, set these variables in your hosting provider's dashboard.
+Make sure you never commit `.env` into git.
 
-### Docker Container Deployment
-
-To containerize the FastAPI backend for production:
+### Dockerfile
+If you want to package the backend with Docker:
 
 ```dockerfile
-# Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for psycopg3 and build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
@@ -925,86 +767,31 @@ EXPOSE 8000
 CMD ["uvicorn", "api.api:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-### PostgreSQL 16 Setup
-
-AgentSwarm requires a PostgreSQL database for application state and LangGraph checkpointing:
+### PostgreSQL Setup
+Create your database and user:
 
 ```sql
 CREATE DATABASE agentswarm;
-CREATE USER agentswarm_user WITH ENCRYPTED PASSWORD 'secure_production_password';
+CREATE USER agentswarm_user WITH ENCRYPTED PASSWORD 'your_password_here';
 GRANT ALL PRIVILEGES ON DATABASE agentswarm TO agentswarm_user;
 ```
 
-Update your `.env`:
-
+Update your `.env` connection string:
 ```env
-DATABASE_URL=postgresql://agentswarm_user:secure_production_password@db.example.com:5432/agentswarm
+DATABASE_URL=postgresql://agentswarm_user:your_password_here@localhost:5432/agentswarm
 ```
 
-### Frontend Production Build & Hosting
-
+### Building the Frontend for Production
 ```bash
 cd frontend
 npm install
 npm run build
 ```
-
-The resulting `frontend/dist/` directory can be hosted behind Nginx, Cloudflare Pages, AWS S3 + CloudFront, or Vercel:
-
-```nginx
-# Sample Nginx reverse proxy configuration
-server {
-    listen 80;
-    server_name agentswarm.example.com;
-
-    root /var/www/agentswarm/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
+This outputs production HTML, CSS, and JS inside `frontend/dist/` that can be served with Nginx, Render, Vercel, or Cloudflare Pages.
 
 ---
 
-# Key Platform Capabilities
-
-* **Google Identity Services (OAuth 2.0)**: Secure passwordless sign-in with Google.
-* **Bring-Your-Own-Key (BYOK) Credit Control**: Users manage their own Gemini, Groq, and Tavily API keys directly from the dashboard modal to protect host quota.
-* **PostgreSQL Stateful Checkpointing**: Distributed workflow state preservation across worker instances.
-
----
-
-# Design Principles
-
-### Specialized Agents
-Each agent has a focused responsibility instead of one model performing every operation.
-
-### Explicit Workflow State
-Agent communication occurs through structured LangGraph state (`AgentState`).
-
-### Independent Evaluation
-The Evaluator is separated from the primary worker model, leveraging cross-model verification.
-
-### Controlled Autonomy
-Revision attempts are bounded by `MAX_REVISIONS = 2` to prevent runaway API consumption.
-
-### Human Oversight
-Human approval is required before finalization, with mandatory feedback on rejection.
-
-### Persistent Execution
-Workflow state is checkpointed in PostgreSQL via `PostgresSaver`, enabling robust task resumption.
-
----
-
-# License
+## License
 
 MIT License
 
@@ -1012,7 +799,5 @@ MIT License
 
 ## Author
 
-**Raavi Suhas**
-
+**Raavi Suhas**  
 GitHub: [https://github.com/suhas-2007/AgentSwarm](https://github.com/suhas-2007/AgentSwarm)
-

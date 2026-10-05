@@ -4,9 +4,7 @@ from pathlib import Path
 import chromadb
 
 
-# Create a stable local persistent ChromaDB database.
-# By default it is stored inside the project's rag/chroma_db
-# directory, regardless of the process's current working directory.
+# local chromadb storage path
 DEFAULT_DB_PATH = (
     Path(__file__).resolve().parent / "chroma_db"
 )
@@ -27,9 +25,7 @@ COLLECTION_NAME = "agent_knowledge"
 
 
 def get_collection():
-    """
-    Get the ChromaDB collection used by AgentSwarm.
-    """
+    # get or create chroma collection
 
     return client.get_or_create_collection(
         name=COLLECTION_NAME
@@ -41,9 +37,7 @@ def add_documents(
     ids: list[str],
     metadatas: list[dict]
 ):
-    """
-    Add document chunks and their metadata to ChromaDB.
-    """
+    # save text chunks + metadata into chromadb
 
     if not (
         isinstance(documents, list)
@@ -120,12 +114,7 @@ def search_documents(
     query: str,
     n_results: int = 3
 ):
-    """
-    Search the knowledge base using semantic similarity.
-
-    If the knowledge base is empty, return an empty
-    result structure instead of failing.
-    """
+    # vector search query against chromadb
 
     if not isinstance(
         query,
@@ -189,10 +178,7 @@ def search_documents(
 
 
 def reset_collection():
-    """
-    Delete the existing knowledge base and create
-    a fresh collection.
-    """
+    # clear and recreate collection
 
     try:
 
@@ -202,8 +188,7 @@ def reset_collection():
 
     except ValueError:
 
-        # ChromaDB raises ValueError when the
-        # requested collection does not exist.
+        # ignore if collection doesn't exist yet
         pass
 
     return client.get_or_create_collection(

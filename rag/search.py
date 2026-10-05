@@ -5,12 +5,7 @@ def retrieve_documents(
     query: str,
     n_results: int = 3
 ) -> list[dict]:
-    """
-    Retrieve relevant documents from ChromaDB.
-
-    Returns a normalized list of retrieval results
-    that can be used by other AgentSwarm components.
-    """
+    # query chromadb and return matching docs
 
     if not isinstance(
         query,
@@ -137,10 +132,7 @@ def retrieve_documents(
 def format_retrieval_results(
     results: list[dict]
 ) -> str:
-    """
-    Convert retrieved documents into a
-    readable evidence block for agents.
-    """
+    # format docs into readable string for agents
 
     if not results:
 

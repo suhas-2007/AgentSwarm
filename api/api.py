@@ -97,10 +97,7 @@ app = FastAPI(
 )
 
 
-# ============================================================
-# REQUEST SCHEMAS
-# ============================================================
-
+# request models
 class CreateTaskRequest(BaseModel):
     goal: str
 
@@ -110,10 +107,7 @@ class ApprovalRequest(BaseModel):
     feedback: str = ""
 
 
-# ============================================================
-# CORS CONFIGURATION
-# ============================================================
-
+# cors setup
 def get_allowed_origins() -> list[str]:
     origins = [
         "http://localhost:5173",
@@ -151,16 +145,10 @@ app.add_middleware(
 router = APIRouter()
 
 
-# ============================================================
-# BACKGROUND TASK
-# ============================================================
-
+# run task in background
 def run_task_background(
     task_id: int
 ):
-    """
-    Execute an AgentSwarm task in the background.
-    """
 
     try:
 
@@ -189,21 +177,12 @@ def run_task_background(
             )
 
 
-# ============================================================
-# DATABASE STATE SYNCHRONIZATION
-# ============================================================
-
+# sync state back to db
 def sync_task_from_state(
     task: Task,
     state: dict,
     db
 ):
-    """
-    Synchronize the database with the latest
-    LangGraph checkpoint.
-
-    A STOPPED task cannot be overwritten.
-    """
 
     new_status = state.get(
         "status",
@@ -264,8 +243,7 @@ def sync_task_from_state(
             completed_tasks
         )
 
-    # Do not overwrite a task that the user
-    # has already stopped.
+    # don't overwrite if user already stopped it
 
     result = db.execute(
         update(Task)
@@ -283,10 +261,7 @@ def sync_task_from_state(
     return result.rowcount == 1
 
 
-# ============================================================
-# COMPLETED TASKS
-# ============================================================
-
+# parse completed tasks
 def get_completed_tasks(
     task: Task
 ) -> list[int]:
@@ -319,10 +294,7 @@ def get_completed_tasks(
     return []
 
 
-# ============================================================
-# TASK RESPONSE
-# ============================================================
-
+# format task response
 def serialize_datetime(dt: datetime | str | None) -> str | None:
     if dt is None:
         return None
@@ -366,10 +338,7 @@ def task_response(
     }
 
 
-# ============================================================
-# HEALTH
-# ============================================================
-
+# health check
 @router.get("/health")
 def health():
 
@@ -379,10 +348,7 @@ def health():
     }
 
 
-# ============================================================
-# CREATE TASK
-# ============================================================
-
+# create task
 @router.post("/tasks")
 def create_task(
     request: CreateTaskRequest,
@@ -428,10 +394,7 @@ def create_task(
     return response
 
 
-# ============================================================
-# LIST TASKS
-# ============================================================
-
+# list tasks
 @router.get("/tasks")
 def list_tasks(
     current_user=Depends(
@@ -457,10 +420,7 @@ def list_tasks(
     ]
 
 
-# ============================================================
-# GET TASK
-# ============================================================
-
+# get single task
 @router.get("/tasks/{task_id}")
 def get_task(
     task_id: int,
@@ -526,10 +486,7 @@ def get_task(
     )
 
 
-# ============================================================
-# LIST ARTIFACTS
-# ============================================================
-
+# list artifacts
 @router.get(
     "/tasks/{task_id}/artifacts"
 )
@@ -561,10 +518,7 @@ def get_artifacts(
     )
 
 
-# ============================================================
-# DOWNLOAD ARTIFACT
-# ============================================================
-
+# download artifact
 @router.get(
     "/tasks/{task_id}/artifacts/{filename}"
 )
@@ -623,10 +577,7 @@ def download_artifact(
     )
 
 
-# ============================================================
-# CREATE SHARE
-# ============================================================
-
+# create share link
 @router.post(
     "/tasks/{task_id}/share"
 )
@@ -681,10 +632,7 @@ def create_share(
     }
 
 
-# ============================================================
-# PUBLIC SHARE
-# ============================================================
-
+# get shared task
 @router.get(
     "/share/{token}"
 )
@@ -738,10 +686,7 @@ def get_shared_task(
     }
 
 
-# ============================================================
-# STOP TASK
-# ============================================================
-
+# stop task
 @router.post(
     "/tasks/{task_id}/stop"
 )
@@ -827,10 +772,7 @@ def stop_task(
     )
 
 
-# ============================================================
-# DELETE TASK
-# ============================================================
-
+# delete task
 @router.delete(
     "/tasks/{task_id}"
 )
@@ -890,10 +832,7 @@ def delete_task(
     }
 
 
-# ============================================================
-# HUMAN APPROVAL / REJECTION
-# ============================================================
-
+# approve or reject task
 @router.post(
     "/tasks/{task_id}/approval"
 )
@@ -992,18 +931,10 @@ def approve_task(
     )
 
 
-# ============================================================
-# REGISTER AUTH ROUTES
-# ============================================================
-
+# register routers
 app.include_router(
     auth_router
 )
-
-
-# ============================================================
-# REGISTER API ROUTES
-# ============================================================
 
 app.include_router(
     router
